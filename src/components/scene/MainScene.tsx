@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Html } from '@react-three/drei';
 import { NTPUScene } from './NTPUScene';
 import { UAV } from './UAV';
+import { Satellites } from '../satellite/Satellites';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
 import Starfield from '../ui/Starfield';
 import * as THREE from 'three';
@@ -95,6 +96,14 @@ export function MainScene() {
         {/* UAV 模型 */}
         <Suspense fallback={null}>
           <UAV position={[0, 10, 0]} scale={10} />
+        </Suspense>
+
+        {/* 衛星系統 */}
+        <Suspense fallback={null}>
+          <Satellites
+            dataUrl="/data/satellite-timeseries.json"
+            timeSpeed={3.0}
+          />
         </Suspense>
 
         {/* 網格輔助線（僅調試時顯示） */}
