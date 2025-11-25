@@ -2,6 +2,9 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { SatelliteOrbitCalculator } from '@/utils/satellite/SatelliteOrbitCalculator';
+import { EnhancedHandoverManager } from '@/utils/satellite/EnhancedHandoverManager';
+import { EnhancedSatelliteLinks } from './EnhancedSatelliteLinks';
+import { HandoverState } from '@/types/handover';
 import * as THREE from 'three';
 
 interface SatellitesProps {
@@ -11,11 +14,16 @@ interface SatellitesProps {
 
 export function Satellites({ dataUrl, timeSpeed = 1.0 }: SatellitesProps) {
   const [calculator] = useState(() => new SatelliteOrbitCalculator());
+  const [handoverManager] = useState(() => new EnhancedHandoverManager());
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const elapsedTimeRef = useRef(0);
   const lastLogTimeRef = useRef(-1);
   const { scene } = useGLTF('/models/sat.glb');
+
+  // 換手狀態
+  const [handoverState, setHandoverState] = useState<HandoverState | null>(null);
+  const [visibleSatellitesState, setVisibleSatellitesState] = useState<Map<string, THREE.Vector3>>(new Map());
 
   // 載入時間序列數據
   useEffect(() => {
@@ -44,21 +52,29 @@ export function Satellites({ dataUrl, timeSpeed = 1.0 }: SatellitesProps) {
       timeSpeed
     );
 
-    // 調試 log（已禁用）
-    // 如需啟用，取消註釋以下代碼
-    /*
+    // 更新換手狀態
+    const newHandoverState = handoverManager.update(visibleSatellites, elapsedTimeRef.current);
+    setHandoverState(newHandoverState);
+    setVisibleSatellitesState(visibleSatellites);
+
+    // 調試 log（換手狀態監控）
     const currentSecond = Math.floor(elapsedTimeRef.current);
-    const logInterval = Math.floor(currentSecond / 10);
+    const logInterval = Math.floor(currentSecond / 5);  // 每 5 秒記錄一次
 
     if (logInterval !== lastLogTimeRef.current) {
       lastLogTimeRef.current = logInterval;
       console.log(`🛰️ 時間: ${elapsedTimeRef.current.toFixed(2)}s, 可見衛星: ${visibleSatellites.size}`);
-      if (visibleSatellites.size > 0) {
-        const [firstId, firstPos] = Array.from(visibleSatellites.entries())[0];
-        console.log(`   第一顆衛星 ${firstId} 位置:`, firstPos);
+      console.log(`   📡 主連線: ${newHandoverState.currentSatelliteId || '無'}`);
+      console.log(`   🎯 目標衛星: ${newHandoverState.targetSatelliteId || '無'}`);
+      console.log(`   🔄 換手階段: ${newHandoverState.phase}`);
+      console.log(`   📊 進度: ${(newHandoverState.progress * 100).toFixed(1)}%`);
+      console.log(`   📶 訊號: 當前=${newHandoverState.signalStrength.current.toFixed(2)}, 目標=${newHandoverState.signalStrength.target.toFixed(2)}`);
+
+      // 顯示候選衛星
+      if (newHandoverState.candidateSatelliteIds.length > 0) {
+        console.log(`   🛰️  候選: ${newHandoverState.candidateSatelliteIds.join(', ')}`);
       }
     }
-    */
 
     // 更新所有衛星的可見性和位置
     meshesRef.current.forEach((mesh, satelliteId) => {
@@ -99,6 +115,7 @@ export function Satellites({ dataUrl, timeSpeed = 1.0 }: SatellitesProps) {
 
   return (
     <group>
+      {/* 衛星模型 */}
       {satelliteModels.map(({ id, model }) => (
         <group
           key={id}
@@ -112,6 +129,15 @@ export function Satellites({ dataUrl, timeSpeed = 1.0 }: SatellitesProps) {
           <primitive object={model} />
         </group>
       ))}
+
+      {/* UAV 到衛星的連線 */}
+      {handoverState && (
+        <EnhancedSatelliteLinks
+          visibleSatellites={visibleSatellitesState}
+          uavPosition={new THREE.Vector3(0, 10, 0)}
+          handoverState={handoverState}
+        />
+      )}
     </group>
   );
 }
