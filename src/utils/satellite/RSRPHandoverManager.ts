@@ -1,26 +1,36 @@
 /**
  * RSRP-Based 換手管理器
  *
- * 基於 3GPP TS 38.214 標準的 RSRP 貪心算法
- * - 總是選擇 RSRP 值最高的衛星
- * - 添加換手遲滯（hysteresis）避免 ping-pong
- * - A3 事件觸發機制
+ * 基於 3GPP TS 38.214 標準和論文：
+ * "Performance Evaluation of Handover using A4 Event in LEO Satellites Network"
+ * (Yu et al., 2022)
+ *
+ * 實現：
+ * - A4 事件觸發機制（絕對閾值）
+ * - 完整路徑損耗模型（FSPL + SF + CL）
+ * - Time-to-Trigger (TTT) 機制
  */
 
 import * as THREE from 'three';
 import { HandoverState } from '@/types/handover';
 import { SatelliteMetrics } from '@/utils/satellite/EnhancedHandoverManager';
+import { calculatePathLoss, type PathLossBreakdown } from '@/utils/satellite/PathLossCalculator';
 
 export class RSRPHandoverManager {
   private currentState: HandoverState;
   private phaseStartTime: number = 0;
   private lastHandoverTime: number = 0;
 
-  // 3GPP A3 換手參數
-  private readonly RSRP_HYSTERESIS_DB = 3.0;     // 遲滯值 3 dB
-  private readonly TIME_TO_TRIGGER_MS = 5000;    // 觸發時間 5 秒
-  private readonly HANDOVER_COOLDOWN = 5;        // 換手冷卻 5 秒
+  // 3GPP A4 換手參數（基於論文 Section V）
+  private readonly A4_THRESHOLD_DBM = -100;      // A4 絕對閾值 -100 dBm（論文測試值：-100, -101, -102）
+  private readonly A4_OFFSET_DB = 0;             // A4 offset 0 dB（論文 Table II: Off = 0 dB）
+  private readonly TIME_TO_TRIGGER_MS = 10000;   // Time-to-Trigger 10 秒（合理的 TTT 展示時間）
+  private readonly HANDOVER_COOLDOWN = 12;       // 換手冷卻 12 秒（避免過於頻繁的換手）
   private readonly MIN_RSRP_DBM = -120;          // 最小可用 RSRP
+
+  // 論文路徑損耗參數（Table II）
+  private readonly FREQUENCY_GHZ = 2.0;          // S-band（論文使用 S-band）
+  private readonly TX_POWER_DBM = 50.0;          // Satellite EIRP density 34 dBW/MHz ≈ 50 dBm
 
   // 階段持續時間（與 Enhanced 相同）
   private readonly PHASE_DURATIONS = {
@@ -33,9 +43,9 @@ export class RSRPHandoverManager {
 
   private readonly UAV_POSITION = new THREE.Vector3(0, 10, 0);
 
-  // A3 事件追蹤
-  private a3EventStartTime: number | null = null;
-  private a3TargetSatelliteId: string | null = null;
+  // A4 事件追蹤
+  private eventStartTime: number | null = null;
+  private eventTargetSatelliteId: string | null = null;
 
   constructor() {
     this.currentState = {
@@ -47,6 +57,15 @@ export class RSRPHandoverManager {
       signalStrength: {
         current: 1.0,
         target: 0.0
+      },
+      a3Event: {
+        active: false,
+        eventType: 'A4',
+        targetSatelliteId: null,
+        elapsedTime: 0,
+        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
+        threshold: this.A4_THRESHOLD_DBM,
+        candidatesAboveThreshold: []
       }
     };
   }
@@ -93,11 +112,14 @@ export class RSRPHandoverManager {
         break;
     }
 
+    // 在所有階段都持續更新 A4 候選列表（用於側邊欄顯示）
+    this.updateA4CandidatesList(metrics);
+
     return this.currentState;
   }
 
   /**
-   * 穩定階段：使用 A3 事件檢測
+   * 穩定階段：使用 A4 事件檢測（基於論文）
    */
   private updateStablePhase(metrics: SatelliteMetrics[], currentTime: number) {
     const current = metrics.find(m => m.satelliteId === this.currentState.currentSatelliteId);
@@ -107,34 +129,126 @@ export class RSRPHandoverManager {
       return;
     }
 
-    // 檢查 A3 事件：鄰居 RSRP > 服務 RSRP + hysteresis
-    const bestNeighbor = this.findBestNeighbor(metrics, current);
+    // A4 事件檢查：找出所有超過閾值的鄰居衛星（排除當前）
+    // 條件：Mn + Offset > Threshold
+    const candidatesAboveThreshold = metrics
+      .filter(m =>
+        m.satelliteId !== this.currentState.currentSatelliteId &&
+        m.rsrp &&
+        (m.rsrp + this.A4_OFFSET_DB) > this.A4_THRESHOLD_DBM
+      )
+      .map(m => ({
+        satelliteId: m.satelliteId,
+        rsrp: m.rsrp!
+      }))
+      .sort((a, b) => b.rsrp - a.rsrp); // 按 RSRP 排序，最高的在前
 
-    if (bestNeighbor &&
-        bestNeighbor.rsrp > current.rsrp + this.RSRP_HYSTERESIS_DB &&
-        currentTime - this.lastHandoverTime > this.HANDOVER_COOLDOWN) {
+    // 檢查是否可以啟動事件：有候選衛星且冷卻時間已過
+    const canStartEvent = candidatesAboveThreshold.length > 0 &&
+                          currentTime - this.lastHandoverTime > this.HANDOVER_COOLDOWN;
 
-      // A3 事件開始
-      if (this.a3EventStartTime === null) {
-        this.a3EventStartTime = currentTime;
-        this.a3TargetSatelliteId = bestNeighbor.satelliteId;
-        console.log(`🔔 A3 事件開始: 鄰居 ${bestNeighbor.satelliteId} RSRP=${bestNeighbor.rsrp.toFixed(1)} dBm > 當前 ${current.rsrp.toFixed(1)} dBm + ${this.RSRP_HYSTERESIS_DB} dB`);
+    if (canStartEvent) {
+      const bestCandidate = candidatesAboveThreshold[0];
+
+      // A4 事件開始
+      if (this.eventStartTime === null) {
+        this.eventStartTime = currentTime;
+        this.eventTargetSatelliteId = bestCandidate.satelliteId;
+        console.log(`🔔 A4 事件開始: 候選衛星 ${bestCandidate.satelliteId} RSRP=${bestCandidate.rsrp.toFixed(1)} dBm > 閾值 ${this.A4_THRESHOLD_DBM} dBm`);
+        console.log(`   共 ${candidatesAboveThreshold.length} 顆候選衛星超過閾值`);
       }
-      // 檢查是否同一目標且超過觸發時間
-      else if (this.a3TargetSatelliteId === bestNeighbor.satelliteId &&
-               (currentTime - this.a3EventStartTime) * 1000 >= this.TIME_TO_TRIGGER_MS) {
-        console.log(`✅ A3 事件觸發: Time-to-Trigger ${this.TIME_TO_TRIGGER_MS}ms 已滿足`);
+
+      // 更新最佳候選（允許動態變化）
+      this.eventTargetSatelliteId = bestCandidate.satelliteId;
+
+      // 更新 A4 事件狀態（active = true）
+      const elapsedTime = currentTime - this.eventStartTime;
+      this.currentState.a3Event = {
+        active: true,
+        eventType: 'A4',
+        targetSatelliteId: this.eventTargetSatelliteId,
+        elapsedTime: elapsedTime,
+        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
+        threshold: this.A4_THRESHOLD_DBM,
+        candidatesAboveThreshold: candidatesAboveThreshold
+      };
+
+      // 檢查是否超過觸發時間（不要求是同一目標，只要持續有候選就可以）
+      if (elapsedTime >= this.TIME_TO_TRIGGER_MS / 1000) {
+        console.log(`✅ A4 事件觸發: Time-to-Trigger ${this.TIME_TO_TRIGGER_MS}ms 已滿足`);
+        console.log(`   最終選定目標: ${bestCandidate.satelliteId} (RSRP=${bestCandidate.rsrp.toFixed(1)} dBm)`);
         this.enterPreparingPhase(metrics, currentTime);
-        this.a3EventStartTime = null;
-        this.a3TargetSatelliteId = null;
+        this.eventStartTime = null;
+        this.eventTargetSatelliteId = null;
+        // 清空事件狀態（換手開始，不再顯示候選列表）
+        this.currentState.a3Event = {
+          active: false,
+          eventType: 'A4',
+          targetSatelliteId: null,
+          elapsedTime: 0,
+          requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
+          threshold: this.A4_THRESHOLD_DBM,
+          candidatesAboveThreshold: []
+        };
       }
     } else {
-      // 重置 A3 事件
-      if (this.a3EventStartTime !== null) {
-        console.log(`❌ A3 事件取消: 條件不再滿足`);
-        this.a3EventStartTime = null;
-        this.a3TargetSatelliteId = null;
+      // 事件未啟動或取消（但仍然顯示候選衛星列表）
+      if (this.eventStartTime !== null) {
+        console.log(`❌ A4 事件取消`);
+        this.eventStartTime = null;
+        this.eventTargetSatelliteId = null;
       }
+      // 更新監測狀態（active = false，但保留候選衛星列表）
+      this.currentState.a3Event = {
+        active: false,
+        eventType: 'A4',
+        targetSatelliteId: null,
+        elapsedTime: 0,
+        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
+        threshold: this.A4_THRESHOLD_DBM,
+        candidatesAboveThreshold: candidatesAboveThreshold  // 保留候選列表用於顯示
+      };
+    }
+  }
+
+  /**
+   * 更新 A4 候選列表（在所有階段都執行）
+   */
+  private updateA4CandidatesList(metrics: SatelliteMetrics[]) {
+    // 計算所有超過 A4 閾值的候選衛星（排除當前）
+    const candidatesAboveThreshold = metrics
+      .filter(m =>
+        m.satelliteId !== this.currentState.currentSatelliteId &&
+        m.rsrp &&
+        (m.rsrp + this.A4_OFFSET_DB) > this.A4_THRESHOLD_DBM
+      )
+      .map(m => ({
+        satelliteId: m.satelliteId,
+        rsrp: m.rsrp!
+      }));
+
+    // 找出最佳候選（RSRP 最高）
+    const bestCandidate = candidatesAboveThreshold.length > 0
+      ? candidatesAboveThreshold.reduce((best, current) =>
+          current.rsrp > best.rsrp ? current : best
+        )
+      : null;
+
+    // 按衛星編號排序（提取數字部分進行比較）
+    candidatesAboveThreshold.sort((a, b) => {
+      const numA = parseInt(a.satelliteId.replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.satelliteId.replace(/\D/g, '')) || 0;
+      return numA - numB;
+    });
+
+    // 更新 a3Event 中的候選列表，保持其他屬性不變
+    if (this.currentState.a3Event) {
+      this.currentState.a3Event = {
+        ...this.currentState.a3Event,
+        candidatesAboveThreshold: candidatesAboveThreshold,
+        bestCandidateId: bestCandidate?.satelliteId || null,
+        threshold: this.A4_THRESHOLD_DBM
+      };
     }
   }
 
@@ -192,7 +306,7 @@ export class RSRPHandoverManager {
       const target = metrics.find(m => m.satelliteId === targetId);
       const current = metrics.find(m => m.satelliteId === this.currentState.currentSatelliteId);
 
-      console.log(`🎯 選擇目標: ${targetId} (RSRP=${target?.rsrp.toFixed(1)} dBm vs 當前=${current?.rsrp.toFixed(1)} dBm)`);
+      // console.log(`🎯 選擇目標: ${targetId} (RSRP=${target?.rsrp.toFixed(1)} dBm vs 當前=${current?.rsrp.toFixed(1)} dBm)`);
     }
 
     // 目標訊號緩慢開始增強
@@ -273,7 +387,7 @@ export class RSRPHandoverManager {
       .map(m => m.satelliteId);
 
     this.currentState.candidateSatelliteIds = candidates;
-    console.log(`🔄 進入換手準備階段，候選衛星(${candidates.length}): ${candidates.join(', ')}`);
+    // console.log(`🔄 進入換手準備階段，候選衛星(${candidates.length}): ${candidates.join(', ')}`);
   }
 
   private enterSelectingPhase(metrics: SatelliteMetrics[], currentTime: number) {
@@ -296,7 +410,7 @@ export class RSRPHandoverManager {
     this.currentState.phase = 'switching';
     this.phaseStartTime = currentTime;
     this.currentState.progress = 0;
-    console.log(`🔀 開始切換連接`);
+    // console.log(`🔀 開始切換連接`);
   }
 
   private enterCompletingPhase(currentTime: number) {
@@ -306,7 +420,7 @@ export class RSRPHandoverManager {
   }
 
   private completeHandover() {
-    console.log(`✅ 換手完成: ${this.currentState.currentSatelliteId} → ${this.currentState.targetSatelliteId}`);
+    // console.log(`✅ 換手完成: ${this.currentState.currentSatelliteId} → ${this.currentState.targetSatelliteId}`);
 
     this.currentState.currentSatelliteId = this.currentState.targetSatelliteId;
     this.currentState.targetSatelliteId = null;
@@ -331,10 +445,20 @@ export class RSRPHandoverManager {
       signalStrength: {
         current: 1.0,
         target: 0.0
+      },
+      a3Event: {
+        active: false,
+        eventType: 'A4',
+        targetSatelliteId: null,
+        elapsedTime: 0,
+        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
+        threshold: this.A4_THRESHOLD_DBM,
+        candidatesAboveThreshold: []
       }
     };
     this.lastHandoverTime = currentTime;
     console.log(`📶 初始連接 (RSRP-Based): ${best.satelliteId} (RSRP=${best.rsrp.toFixed(1)} dBm)`);
+    console.log(`   所有衛星 RSRP:`, metrics.map(m => `${m.satelliteId}=${m.rsrp.toFixed(1)}`).join(', '));
   }
 
   private resetState() {
@@ -347,14 +471,23 @@ export class RSRPHandoverManager {
       signalStrength: {
         current: 1.0,
         target: 0.0
+      },
+      a3Event: {
+        active: false,
+        eventType: 'A4',
+        targetSatelliteId: null,
+        elapsedTime: 0,
+        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
+        threshold: this.A4_THRESHOLD_DBM,
+        candidatesAboveThreshold: []
       }
     };
-    this.a3EventStartTime = null;
-    this.a3TargetSatelliteId = null;
+    this.eventStartTime = null;
+    this.eventTargetSatelliteId = null;
   }
 
   /**
-   * 計算衛星指標（包含 RSRP）
+   * 計算衛星指標（包含 RSRP）- 使用完整路徑損耗模型
    */
   private calculateMetrics(visibleSatellites: Map<string, THREE.Vector3>): SatelliteMetrics[] {
     const metrics: SatelliteMetrics[] = [];
@@ -369,14 +502,19 @@ export class RSRPHandoverManager {
       const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
       const elevation = Math.atan2(dy, horizontalDistance) * (180 / Math.PI);
 
-      // 簡化的 RSRP 估算（基於自由空間路徑損耗）
-      // RSRP = Tx_Power - FSPL
-      // FSPL = 20*log10(d) + 20*log10(f) + 32.45
-      // 假設：Tx_Power = 50 dBm, f = 2 GHz (Starlink Ku band)
-      const frequency_ghz = 2.0;
-      const tx_power_dbm = 50.0;
-      const fspl_db = 20 * Math.log10(distance) + 20 * Math.log10(frequency_ghz) + 32.45;
-      const rsrp = tx_power_dbm - fspl_db;
+      // 使用完整路徑損耗模型（FSPL + SF + CL）
+      // 基於論文: Yu et al., 2022
+      // PL = PLb = FSPL(d, fc) + SF + CL(α, fc)
+      const pathLoss = calculatePathLoss(
+        distance,
+        elevation,
+        this.FREQUENCY_GHZ,
+        this.TX_POWER_DBM,
+        true,  // useLOS: suburban scenario
+        false  // useSF: 確定性模擬，不使用隨機 SF
+      );
+
+      const rsrp = pathLoss.rsrp;
 
       // 計算訊號品質（與 Enhanced 相同）
       const elevationFactor = Math.max(0, elevation / 90);
@@ -388,7 +526,7 @@ export class RSRPHandoverManager {
         elevation,
         distance,
         signalQuality,
-        rsrp // 添加 RSRP 字段
+        rsrp // RSRP 使用完整路徑損耗模型計算
       });
     });
 

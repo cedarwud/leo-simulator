@@ -23,9 +23,9 @@ export const HANDOVER_METHODS: Record<HandoverMethodType, HandoverMethodInfo> = 
   },
   rsrp: {
     id: 'rsrp',
-    name: 'RSRP-Based',
-    description: '3GPP 標準 RSRP 貪心算法（總是選擇訊號最強衛星）',
-    academicReference: '3GPP TS 38.214 § 5.1.1',
+    name: 'RSRP-Based (A4)',
+    description: '3GPP A4 事件換手（絕對閾值：鄰居 RSRP > -85 dBm）',
+    academicReference: 'Yu et al. 2022 - A4 Event in LEO',
     color: '#0088ff',
   },
   dqn: {
@@ -49,6 +49,43 @@ export interface HandoverStats {
   connectionDuration: number;    // 平均連接持續時間 (秒)
   serviceInterruptions: number;  // 服務中斷次數
   elapsedTime: number;           // 已運行時間 (秒)
+
+  // 擴展資訊（用於更豐富的UI顯示）
+  visibleSatellites?: number;    // 可見衛星數量
+  totalSatellites?: number;      // 總衛星數量
+  currentSatelliteElevation?: number; // 當前衛星仰角 (度)
+  currentSatelliteDistance?: number;  // 當前衛星距離 (km)
+  candidateSatellites?: string[];     // 候選衛星列表
+
+  // 目標衛星信號數據（僅在換手階段有值）
+  targetSatelliteRSRP?: number;      // 目標衛星 RSRP (dBm)
+  targetSatelliteRSRQ?: number;      // 目標衛星 RSRQ (dB)
+  targetSatelliteSINR?: number;      // 目標衛星 SINR (dB)
+  targetSatelliteElevation?: number; // 目標衛星仰角 (度)
+  targetSatelliteDistance?: number;  // 目標衛星距離 (km)
+
+  // 路徑損耗分量（基於論文模型，教育展示用）
+  pathLoss?: {
+    fspl: number;                    // 自由空間路徑損耗 (dB)
+    sf: number;                      // Shadow Fading (dB)
+    cl: number;                      // Clutter Loss (dB)
+    total: number;                   // 總路徑損耗 (dB)
+  };
+
+  // A3/A4 事件狀態（用於 RSRP-based 換手方法）
+  a3Event?: {
+    active: boolean;                 // 事件是否啟動
+    eventType: 'A3' | 'A4';          // 事件類型
+    targetSatelliteId: string | null; // 事件的目標衛星
+    elapsedTime: number;             // 已經持續的時間（秒）
+    requiredTime: number;            // 需要持續的時間（秒）
+    threshold?: number;              // A4 絕對閾值（僅 A4 使用）
+    bestCandidateId?: string | null; // 最佳候選衛星 ID（RSRP 最高）
+    candidatesAboveThreshold?: Array<{  // 超過閾值的候選衛星列表（A4）
+      satelliteId: string;
+      rsrp: number;
+    }>;
+  };
 }
 
 /**

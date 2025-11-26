@@ -465,6 +465,58 @@ export class SatelliteOrbitCalculator {
       withWindows: this.visibleWindows.size,
     };
   }
+
+  /**
+   * 獲取特定衛星在特定時間的詳細資訊（仰角、距離等）
+   */
+  getSatelliteInfo(
+    satelliteId: string,
+    elapsedSeconds: number,
+    speedMultiplier: number = 1
+  ): { elevation: number; distance: number; azimuth: number } | null {
+    const satData = this.satelliteData.get(satelliteId);
+    if (!satData) return null;
+
+    const timeseries = satData.position_timeseries;
+    if (timeseries.length === 0) return null;
+
+    const currentTime = elapsedSeconds * speedMultiplier;
+
+    // 找到最接近的時間點
+    let leftIndex = 0;
+    for (let i = 0; i < timeseries.length; i++) {
+      if (timeseries[i].time_offset_seconds <= currentTime) {
+        leftIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    const currentPoint = timeseries[leftIndex];
+    if (!currentPoint.is_visible) return null;
+
+    const nextPoint = timeseries[Math.min(leftIndex + 1, timeseries.length - 1)];
+
+    // 如果下一個點也可見，進行插值
+    if (nextPoint.is_visible && nextPoint !== currentPoint) {
+      const timeDiff = nextPoint.time_offset_seconds - currentPoint.time_offset_seconds;
+      const t = timeDiff > 0
+        ? (currentTime - currentPoint.time_offset_seconds) / timeDiff
+        : 0;
+
+      return {
+        elevation: currentPoint.elevation_deg + (nextPoint.elevation_deg - currentPoint.elevation_deg) * t,
+        distance: currentPoint.range_km + (nextPoint.range_km - currentPoint.range_km) * t,
+        azimuth: currentPoint.azimuth_deg + (nextPoint.azimuth_deg - currentPoint.azimuth_deg) * t
+      };
+    }
+
+    return {
+      elevation: currentPoint.elevation_deg,
+      distance: currentPoint.range_km,
+      azimuth: currentPoint.azimuth_deg
+    };
+  }
 }
 
 // ==================== 使用示例 ====================

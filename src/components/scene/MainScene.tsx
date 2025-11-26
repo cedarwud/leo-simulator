@@ -6,6 +6,7 @@ import { UAV } from './UAV';
 import { Satellites } from '../satellite/Satellites';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { Sidebar } from '../ui/Sidebar';
+import { A4EventPanel } from '../ui/A4EventPanel';
 import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
 import Starfield from '../ui/Starfield';
@@ -74,6 +75,11 @@ export function MainScene() {
         currentSatelliteId={currentSatelliteId}
         currentPhase={currentPhase}
       />
+
+      {/* 右側 A4 事件監測面板（僅在 RSRP 方法時顯示） */}
+      {handoverMethod === 'rsrp' && (
+        <A4EventPanel stats={handoverStats} constellation={constellation} />
+      )}
 
       <Canvas
         shadows
