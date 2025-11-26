@@ -4,6 +4,9 @@ import { OrbitControls, PerspectiveCamera, Html } from '@react-three/drei';
 import { NTPUScene } from './NTPUScene';
 import { UAV } from './UAV';
 import { Satellites } from '../satellite/Satellites';
+import { ConstellationType } from '../controls/ConstellationSelector';
+import { Sidebar } from '../ui/Sidebar';
+import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
 import Starfield from '../ui/Starfield';
 import * as THREE from 'three';
@@ -27,6 +30,27 @@ function Loader() {
 
 export function MainScene() {
   const [showDebug] = useState(false); // 設為 true 可顯示調試網格
+  const [constellation, setConstellation] = useState<ConstellationType>('starlink');
+  const [handoverMethod, setHandoverMethod] = useState<HandoverMethodType>('geometric');
+  const [handoverStats, setHandoverStats] = useState<HandoverStats>({
+    totalHandovers: 0,
+    pingPongEvents: 0,
+    averageRSRP: -95,
+    averageRSRQ: -12,
+    averageSINR: 10,
+    connectionDuration: 0,
+    serviceInterruptions: 0,
+    elapsedTime: 0
+  });
+  const [currentSatelliteId, setCurrentSatelliteId] = useState<string | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<string>('stable');
+
+  // 統計更新回調
+  const handleStatsUpdate = (stats: HandoverStats, satelliteId: string | null, phase: string) => {
+    setHandoverStats(stats);
+    setCurrentSatelliteId(satelliteId);
+    setCurrentPhase(phase);
+  };
 
   return (
     <div
@@ -39,6 +63,17 @@ export function MainScene() {
       }}
     >
       <Starfield starCount={180} />
+
+      {/* 統一控制側邊欄 */}
+      <Sidebar
+        currentConstellation={constellation}
+        onConstellationChange={setConstellation}
+        currentMethod={handoverMethod}
+        onMethodChange={setHandoverMethod}
+        stats={handoverStats}
+        currentSatelliteId={currentSatelliteId}
+        currentPhase={currentPhase}
+      />
 
       <Canvas
         shadows
@@ -101,8 +136,11 @@ export function MainScene() {
         {/* 衛星系統 */}
         <Suspense fallback={null}>
           <Satellites
-            dataUrl="/data/satellite-timeseries.json"
+            dataUrl={`/data/satellite-timeseries-${constellation}.json`}
             timeSpeed={3.0}
+            handoverMethod={handoverMethod}
+            onStatsUpdate={handleStatsUpdate}
+            key={`${constellation}-${handoverMethod}`} // 強制重新載入當星座或換手方法改變時
           />
         </Suspense>
 

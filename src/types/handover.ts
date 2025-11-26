@@ -28,4 +28,5 @@ export interface SatelliteMetrics {
   elevation: number;    // 仰角
   distance: number;     // 距離
   signalQuality: number; // 訊號品質 (0-1)
+  rsrp?: number;        // RSRP (dBm) - 用於 RSRP-based 換手
 }

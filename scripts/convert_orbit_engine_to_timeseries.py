@@ -3,39 +3,60 @@
 從 orbit-engine Stage 4 輸出轉換為前端時間序列格式
 
 轉換邏輯：
-1. orbit-engine: 按衛星組織（98顆衛星，每顆有可見時段的 time_series）
-2. 前端需求: 完整軌道週期（190個時間點，每個點標記可見/不可見）
+1. orbit-engine: 按衛星組織（星座候選池，每顆有可見時段的 time_series）
+2. 前端需求: 完整軌道週期（時間點，每個點標記可見/不可見）
+
+支援星座：
+- starlink: 98顆，目標 10-15 顆可見
+- oneweb: 26顆，目標 3-6 顆可見
 """
 
 import json
+import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
 from collections import defaultdict
 
 # 文件路徑
 PROJECT_ROOT = Path(__file__).parent.parent
-ORBIT_ENGINE_OUTPUT = Path("/home/sat/satellite/orbit-engine/data/outputs/stage4/link_feasibility_output_20251103_060257.json")
-OUTPUT_FILE = PROJECT_ROOT / "public/data/satellite-timeseries.json"
+ORBIT_ENGINE_STAGE4_DIR = Path("/home/sat/satellite/orbit-engine/data/outputs/stage4")
 
-def load_orbit_engine_data():
-    """載入 orbit-engine Stage 4 輸出"""
-    print("📂 載入 orbit-engine Stage 4 輸出...")
-    with open(ORBIT_ENGINE_OUTPUT, 'r') as f:
+def find_latest_orbit_engine_output():
+    """自動找到 stage4 目錄中最新的輸出文件"""
+    json_files = list(ORBIT_ENGINE_STAGE4_DIR.glob("link_feasibility_output_*.json"))
+
+    if not json_files:
+        raise FileNotFoundError(f"在 {ORBIT_ENGINE_STAGE4_DIR} 中找不到 orbit-engine 輸出文件")
+
+    # 按修改時間排序，取最新的
+    latest_file = max(json_files, key=lambda p: p.stat().st_mtime)
+    print(f"📂 自動選擇最新的 orbit-engine 輸出: {latest_file.name}")
+    return latest_file
+
+def load_orbit_engine_data(constellation='starlink'):
+    """載入 orbit-engine Stage 4 輸出
+
+    Args:
+        constellation: 'starlink' 或 'oneweb'
+    """
+    print(f"📂 載入 orbit-engine Stage 4 輸出（星座: {constellation.upper()}）...")
+    orbit_engine_file = find_latest_orbit_engine_output()
+    with open(orbit_engine_file, 'r') as f:
         data = json.load(f)
 
-    # 提取 Starlink 優化池
-    starlink_pool = data['pool_optimization']['optimized_pools']['starlink']
-    print(f"   ✓ Starlink 候選池: {len(starlink_pool)} 顆衛星")
+    # 提取指定星座優化池
+    satellite_pool = data['pool_optimization']['optimized_pools'][constellation]
+    print(f"   ✓ {constellation.upper()} 候選池: {len(satellite_pool)} 顆衛星")
 
     # 提取統計信息
-    stats = data['pool_optimization']['optimization_metrics']['starlink']['coverage_statistics']
+    stats = data['pool_optimization']['optimization_metrics'][constellation]['coverage_statistics']
     print(f"   ✓ 時間點數: {stats['total_time_points']}")
     print(f"   ✓ 平均可見: {stats['avg_visible']:.1f} 顆")
     print(f"   ✓ 範圍: {stats['min_visible']}-{stats['max_visible']} 顆")
 
-    return starlink_pool, stats
+    return satellite_pool, stats, constellation
 
-def build_time_index(starlink_pool):
+def build_time_index(satellite_pool):
     """
     從按衛星組織的數據構建完整時間軸索引
 
@@ -47,7 +68,7 @@ def build_time_index(starlink_pool):
 
     # 收集所有時間戳
     all_timestamps = set()
-    for satellite in starlink_pool:
+    for satellite in satellite_pool:
         for point in satellite['time_series']:
             all_timestamps.add(point['timestamp'])
 
@@ -58,7 +79,7 @@ def build_time_index(starlink_pool):
     # 構建可見性索引: {timestamp: {sat_id: data}}
     visibility_index = defaultdict(dict)
 
-    for satellite in starlink_pool:
+    for satellite in satellite_pool:
         sat_id = satellite['satellite_id']
         for point in satellite['time_series']:
             timestamp = point['timestamp']
@@ -199,63 +220,100 @@ def verify_coverage(satellites_data, time_step_seconds):
     }
 
 def main():
-    print("=" * 60)
-    print("📡 轉換 orbit-engine 數據為前端時間序列格式")
-    print("=" * 60)
-
-    # 1. 載入數據
-    starlink_pool, orbit_stats = load_orbit_engine_data()
-
-    # 2. 構建時間軸索引
-    time_points, visibility_index = build_time_index(starlink_pool)
-
-    # 3. 生成完整軌道週期數據
-    satellites_data, time_step_seconds, total_time_points = generate_full_orbit_timeseries(
-        starlink_pool, time_points, visibility_index
+    # 解析命令行參數
+    parser = argparse.ArgumentParser(
+        description='轉換 orbit-engine 數據為前端時間序列格式',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+範例:
+  %(prog)s                    # 生成 Starlink 數據
+  %(prog)s --constellation starlink
+  %(prog)s --constellation oneweb
+  %(prog)s --all              # 生成所有星座數據
+        """
     )
+    parser.add_argument(
+        '--constellation', '-c',
+        choices=['starlink', 'oneweb'],
+        default='starlink',
+        help='選擇星座 (預設: starlink)'
+    )
+    parser.add_argument(
+        '--all', '-a',
+        action='store_true',
+        help='生成所有星座數據'
+    )
+    args = parser.parse_args()
 
-    # 4. 驗證覆蓋率
-    coverage_stats = verify_coverage(satellites_data, time_step_seconds)
+    # 決定要處理的星座
+    if args.all:
+        constellations = ['starlink', 'oneweb']
+    else:
+        constellations = [args.constellation]
 
-    # 5. 生成輸出 JSON
-    output_data = {
-        'metadata': {
-            'generated_at': datetime.now().isoformat(),
-            'generator': 'convert_orbit_engine_to_timeseries.py',
-            'description': 'NTPU Starlink 衛星完整軌道週期數據（基於 orbit-engine Stage 4）',
-            'source': 'orbit-engine Stage 4 pool_optimization',
-            'orbit_period_minutes': total_time_points * time_step_seconds / 60,
-            'warning': '⚠️ 此數據包含完整軌道週期（可見+不可見時段），前端循環播放此週期'
-        },
-        'statistics': {
-            'total_satellites': len(satellites_data),
-            'constellation': 'starlink',
-            'time_points': total_time_points,
-            'time_step_seconds': time_step_seconds,
-            'orbit_period_minutes': total_time_points * time_step_seconds / 60,
-            'avg_visible_satellites': coverage_stats['avg_visible'],
-            'visible_range': [coverage_stats['min_visible'], coverage_stats['max_visible']],
-            'target_met_rate': coverage_stats['target_met_rate']
-        },
-        'satellites': satellites_data
-    }
+    # 處理每個星座
+    for constellation in constellations:
+        print("=" * 60)
+        print(f"📡 轉換 orbit-engine 數據為前端時間序列格式 ({constellation.upper()})")
+        print("=" * 60)
 
-    # 6. 保存到文件
-    print(f"\n💾 保存數據到: {OUTPUT_FILE}")
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        # 1. 載入數據
+        satellite_pool, orbit_stats, const_name = load_orbit_engine_data(constellation)
 
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        json.dump(output_data, f, indent=2, ensure_ascii=False)
+        # 2. 構建時間軸索引
+        time_points, visibility_index = build_time_index(satellite_pool)
 
-    file_size = OUTPUT_FILE.stat().st_size / 1024 / 1024  # MB
-    print(f"   ✓ 保存成功 ({file_size:.2f} MB)")
+        # 3. 生成完整軌道週期數據
+        satellites_data, time_step_seconds, total_time_points = generate_full_orbit_timeseries(
+            satellite_pool, time_points, visibility_index
+        )
 
-    # 7. 最終摘要
-    print(f"\n✅ 轉換完成！")
-    print(f"   衛星數量: {len(satellites_data)} 顆")
-    print(f"   軌道週期: {total_time_points * time_step_seconds / 60:.1f} 分鐘 ({total_time_points} 個時間點)")
-    print(f"   平均可見: {coverage_stats['avg_visible']:.1f} 顆 (範圍 {coverage_stats['min_visible']}-{coverage_stats['max_visible']})")
-    print("=" * 60)
+        # 4. 驗證覆蓋率
+        coverage_stats = verify_coverage(satellites_data, time_step_seconds)
+
+        # 5. 生成輸出 JSON
+        output_data = {
+            'metadata': {
+                'generated_at': datetime.now().isoformat(),
+                'generator': 'convert_orbit_engine_to_timeseries.py',
+                'description': f'NTPU {const_name.upper()} 衛星完整軌道週期數據（基於 orbit-engine Stage 4）',
+                'source': 'orbit-engine Stage 4 pool_optimization',
+                'constellation': const_name,
+                'orbit_period_minutes': total_time_points * time_step_seconds / 60,
+                'warning': '⚠️ 此數據包含完整軌道週期（可見+不可見時段），前端循環播放此週期'
+            },
+            'statistics': {
+                'total_satellites': len(satellites_data),
+                'constellation': const_name,
+                'time_points': total_time_points,
+                'time_step_seconds': time_step_seconds,
+                'orbit_period_minutes': total_time_points * time_step_seconds / 60,
+                'avg_visible_satellites': coverage_stats['avg_visible'],
+                'visible_range': [coverage_stats['min_visible'], coverage_stats['max_visible']],
+                'target_met_rate': coverage_stats['target_met_rate']
+            },
+            'satellites': satellites_data
+        }
+
+        # 6. 保存到文件
+        output_file = PROJECT_ROOT / f"public/data/satellite-timeseries-{const_name}.json"
+        print(f"\n💾 保存數據到: {output_file}")
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+
+        file_size = output_file.stat().st_size / 1024 / 1024  # MB
+        print(f"   ✓ 保存成功 ({file_size:.2f} MB)")
+
+        # 7. 最終摘要
+        print(f"\n✅ 轉換完成！")
+        print(f"   星座: {const_name.upper()}")
+        print(f"   衛星數量: {len(satellites_data)} 顆")
+        print(f"   軌道週期: {total_time_points * time_step_seconds / 60:.1f} 分鐘 ({total_time_points} 個時間點)")
+        print(f"   平均可見: {coverage_stats['avg_visible']:.1f} 顆 (範圍 {coverage_stats['min_visible']}-{coverage_stats['max_visible']})")
+        print("=" * 60)
+        print()
 
 if __name__ == '__main__':
     main()

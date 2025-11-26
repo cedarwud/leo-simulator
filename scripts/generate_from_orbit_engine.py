@@ -22,10 +22,22 @@ DURATION_HOURS = 2        # 計算時長（小時）- 2小時足以觀察動態�
 
 # 文件路徑
 PROJECT_ROOT = Path(__file__).parent.parent
-ORBIT_ENGINE_OUTPUT = Path("/home/sat/satellite/orbit-engine/data/outputs/stage4/link_feasibility_output_20251103_060257.json")
+ORBIT_ENGINE_STAGE4_DIR = Path("/home/sat/satellite/orbit-engine/data/outputs/stage4")
 STARLINK_TLE_DIR = Path("/home/sat/satellite/tle_data/starlink/tle")
 ONEWEB_TLE_DIR = Path("/home/sat/satellite/tle_data/oneweb/tle")
 OUTPUT_FILE = PROJECT_ROOT / "public/data/satellite-timeseries.json"
+
+def find_latest_orbit_engine_output():
+    """自動找到 stage4 目錄中最新的輸出文件"""
+    json_files = list(ORBIT_ENGINE_STAGE4_DIR.glob("link_feasibility_output_*.json"))
+
+    if not json_files:
+        raise FileNotFoundError(f"在 {ORBIT_ENGINE_STAGE4_DIR} 中找不到 orbit-engine 輸出文件")
+
+    # 按修改時間排序，取最新的
+    latest_file = max(json_files, key=lambda p: p.stat().st_mtime)
+    print(f"📂 自動選擇最新的 orbit-engine 輸出: {latest_file.name}")
+    return latest_file
 
 # ==================== 讀取 orbit-engine 輸出 ====================
 
@@ -201,7 +213,8 @@ def main():
     print("=" * 60)
 
     # 1. 載入 orbit-engine 衛星池
-    satellite_ids = load_satellite_pool(ORBIT_ENGINE_OUTPUT)
+    orbit_engine_file = find_latest_orbit_engine_output()
+    satellite_ids = load_satellite_pool(orbit_engine_file)
     total_satellites = len(satellite_ids['starlink']) + len(satellite_ids['oneweb'])
 
     # 2. 載入 TLE 數據
