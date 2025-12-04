@@ -91,7 +91,6 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
 
   // 動態創建換手管理器（根據選擇的方法）
   const handoverManager = useMemo(() => {
-    console.log(`🔄 切換換手方法: ${handoverMethod.toUpperCase()}`);
     switch (handoverMethod) {
       case 'rsrp':
         return new RSRPHandoverManager();
@@ -109,12 +108,6 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
     lastSatelliteIdRef.current = null;
     connectionStartTimeRef.current = newStats.elapsedTime;
     lastHandoverTimeRef.current = newStats.elapsedTime;
-
-    console.log(`📊 已重置統計數據（${handoverMethod.toUpperCase()}）:`);
-    console.log(`   運行時間: ${(newStats.elapsedTime / 60).toFixed(1)} 分鐘`);
-    console.log(`   總換手次數: ${newStats.totalHandovers} 次`);
-    console.log(`   Ping-pong: ${newStats.pingPongEvents} 次 (${((newStats.pingPongEvents / (newStats.totalHandovers || 1)) * 100).toFixed(1)}%)`);
-    console.log(`   平均連接時長: ${newStats.connectionDuration.toFixed(1)} 秒`);
   }, [handoverMethod]);
 
   // 換手狀態
@@ -126,10 +119,6 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
     calculator
       .loadTimeseries(dataUrl)
       .then(() => {
-        const ids = calculator.getAllSatelliteIds();
-        console.log('✅ 衛星數據載入成功');
-        console.log(`📡 衛星數量: ${ids.length}`);
-        console.log('📡 衛星 IDs:', ids);
         setIsLoaded(true);
       })
       .catch((err) => {

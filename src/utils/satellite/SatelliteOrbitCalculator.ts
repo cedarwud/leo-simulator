@@ -102,8 +102,6 @@ export class SatelliteOrbitCalculator {
    * @param jsonUrl - JSON 文件的 URL（通常是 /data/satellite-timeseries.json）
    */
   async loadTimeseries(jsonUrl: string): Promise<void> {
-    console.log(`📡 載入衛星時間序列數據: ${jsonUrl}`);
-
     try {
       const response = await fetch(jsonUrl);
 
@@ -128,10 +126,6 @@ export class SatelliteOrbitCalculator {
       });
 
       this.isLoaded = true;
-
-      console.log(`✅ 成功載入 ${this.satelliteData.size} 顆衛星的時間序列數據`);
-      console.log(`📊 統計:`, data.statistics);
-      console.log(`⚠️  ${data.metadata.warning}`);
 
     } catch (error) {
       this.loadError = error instanceof Error ? error.message : String(error);

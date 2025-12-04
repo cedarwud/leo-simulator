@@ -154,8 +154,6 @@ export class RSRPHandoverManager {
       if (this.eventStartTime === null) {
         this.eventStartTime = currentTime;
         this.eventTargetSatelliteId = bestCandidate.satelliteId;
-        console.log(`🔔 A4 事件開始: 候選衛星 ${bestCandidate.satelliteId} RSRP=${bestCandidate.rsrp.toFixed(1)} dBm > 閾值 ${this.A4_THRESHOLD_DBM} dBm`);
-        console.log(`   共 ${candidatesAboveThreshold.length} 顆候選衛星超過閾值`);
       }
 
       // 更新最佳候選（允許動態變化）
@@ -175,8 +173,6 @@ export class RSRPHandoverManager {
 
       // 檢查是否超過觸發時間（不要求是同一目標，只要持續有候選就可以）
       if (elapsedTime >= this.TIME_TO_TRIGGER_MS / 1000) {
-        console.log(`✅ A4 事件觸發: Time-to-Trigger ${this.TIME_TO_TRIGGER_MS}ms 已滿足`);
-        console.log(`   最終選定目標: ${bestCandidate.satelliteId} (RSRP=${bestCandidate.rsrp.toFixed(1)} dBm)`);
         this.enterPreparingPhase(metrics, currentTime);
         this.eventStartTime = null;
         this.eventTargetSatelliteId = null;
@@ -194,7 +190,6 @@ export class RSRPHandoverManager {
     } else {
       // 事件未啟動或取消（但仍然顯示候選衛星列表）
       if (this.eventStartTime !== null) {
-        console.log(`❌ A4 事件取消`);
         this.eventStartTime = null;
         this.eventTargetSatelliteId = null;
       }
@@ -457,8 +452,6 @@ export class RSRPHandoverManager {
       }
     };
     this.lastHandoverTime = currentTime;
-    console.log(`📶 初始連接 (RSRP-Based): ${best.satelliteId} (RSRP=${best.rsrp.toFixed(1)} dBm)`);
-    console.log(`   所有衛星 RSRP:`, metrics.map(m => `${m.satelliteId}=${m.rsrp.toFixed(1)}`).join(', '));
   }
 
   private resetState() {

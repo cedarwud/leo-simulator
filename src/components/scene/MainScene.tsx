@@ -6,7 +6,7 @@ import { UAV } from './UAV';
 import { Satellites } from '../satellite/Satellites';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { Sidebar } from '../ui/Sidebar';
-import { A4EventPanel } from '../ui/A4EventPanel';
+import { RightPanel } from '../ui/RightPanel';
 import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
 import Starfield from '../ui/Starfield';
@@ -46,6 +46,11 @@ export function MainScene() {
   const [currentSatelliteId, setCurrentSatelliteId] = useState<string | null>(null);
   const [currentPhase, setCurrentPhase] = useState<string>('stable');
 
+  // 全局控制參數
+  const [timeSpeed, setTimeSpeed] = useState<number>(3);
+  const [animationSpeed, setAnimationSpeed] = useState<'fast' | 'normal' | 'slow'>('normal');
+  const [candidateCount, setCandidateCount] = useState<number>(6);
+
   // 統計更新回調
   const handleStatsUpdate = (stats: HandoverStats, satelliteId: string | null, phase: string) => {
     setHandoverStats(stats);
@@ -65,7 +70,7 @@ export function MainScene() {
     >
       <Starfield starCount={180} />
 
-      {/* 統一控制側邊欄 */}
+      {/* 左側監控側邊欄 */}
       <Sidebar
         currentConstellation={constellation}
         onConstellationChange={setConstellation}
@@ -74,12 +79,20 @@ export function MainScene() {
         stats={handoverStats}
         currentSatelliteId={currentSatelliteId}
         currentPhase={currentPhase}
+        timeSpeed={timeSpeed}
+        animationSpeed={animationSpeed}
+        candidateCount={candidateCount}
+        onTimeSpeedChange={setTimeSpeed}
+        onAnimationSpeedChange={setAnimationSpeed}
+        onCandidateCountChange={setCandidateCount}
       />
 
-      {/* 右側 A4 事件監測面板（僅在 RSRP 方法時顯示） */}
-      {handoverMethod === 'rsrp' && (
-        <A4EventPanel stats={handoverStats} constellation={constellation} />
-      )}
+      {/* 右側決策詳情面板 */}
+      <RightPanel
+        currentMethod={handoverMethod}
+        stats={handoverStats}
+        constellation={constellation}
+      />
 
       <Canvas
         shadows
@@ -143,7 +156,7 @@ export function MainScene() {
         <Suspense fallback={null}>
           <Satellites
             dataUrl={`/data/satellite-timeseries-${constellation}.json`}
-            timeSpeed={3.0}
+            timeSpeed={timeSpeed}
             handoverMethod={handoverMethod}
             onStatsUpdate={handleStatsUpdate}
             key={`${constellation}-${handoverMethod}`} // 強制重新載入當星座或換手方法改變時

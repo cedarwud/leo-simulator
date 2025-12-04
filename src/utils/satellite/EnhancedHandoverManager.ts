@@ -1,5 +1,41 @@
 import * as THREE from 'three';
-import { HandoverState, HandoverPhase, SatelliteMetrics } from '@/types/handover';
+import { HandoverState, HandoverPhase, SatelliteMetrics as SatelliteMetricsType } from '@/types/handover';
+
+// 重新導出 SatelliteMetrics 供外部使用
+export type SatelliteMetrics = SatelliteMetricsType;
+
+/**
+ * Geometric 換手配置介面
+ */
+export interface GeometricHandoverConfig {
+  // 核心決策參數
+  elevationWeight: number;        // 仰角權重 (0.5-0.9)
+  triggerElevation: number;       // 觸發仰角 (30-60)
+  handoverCooldown: number;       // 冷卻時間 (3-15)
+
+  // 視覺參數
+  animationSpeed: 'fast' | 'normal' | 'slow';
+  candidateCount: number;         // 候選數量 (3-10)
+
+  // 高級參數（可選）
+  preparingElevation?: number;    // 準備階段仰角 (20-50)
+  executeElevation?: number;      // 執行仰角 (10-30)
+  maxDistance?: number;           // 最大距離歸一化 (1000-3000)
+}
+
+/**
+ * 預設配置
+ */
+const DEFAULT_CONFIG: GeometricHandoverConfig = {
+  elevationWeight: 0.7,
+  triggerElevation: 45,
+  handoverCooldown: 5,
+  animationSpeed: 'normal',
+  candidateCount: 6,
+  preparingElevation: 30,
+  executeElevation: 20,
+  maxDistance: 2000
+};
 
 /**
  * 增強版換手管理器
@@ -28,22 +64,56 @@ export class EnhancedHandoverManager {
   private phaseStartTime: number = 0;
   private lastHandoverTime: number = 0;
 
-  // 換手參數（大幅提早觸發，延長整個過程）
-  private readonly TRIGGER_ELEVATION = 45;      // 開始尋找候選（度）- 更早觸發
-  private readonly PREPARING_ELEVATION = 30;    // 進入準備階段（度）
-  private readonly EXECUTE_ELEVATION = 20;      // 執行換手（度）
-  private readonly HANDOVER_COOLDOWN = 5;       // 換手冷卻（秒）
+  // 可配置參數
+  private config: GeometricHandoverConfig = DEFAULT_CONFIG;
 
-  // 階段持續時間（大幅延長以清楚展示整個換手流程）
-  private readonly PHASE_DURATIONS = {
-    preparing: 12,     // 準備階段 12 秒（顯示多個候選，訊號逐漸減弱）
-    selecting: 10,     // 選擇階段 10 秒（從候選中挑選最佳目標）
-    establishing: 12,  // 建立階段 12 秒（目標訊號逐漸建立增強）
-    switching: 12,     // 切換階段 12 秒（平滑過渡，訊號轉移）
-    completing: 4      // 完成階段 4 秒（穩定新連接）
+  // 階段持續時間映射
+  private readonly ANIMATION_SPEED_MAP = {
+    fast: {
+      preparing: 3,
+      selecting: 2,
+      establishing: 3,
+      switching: 3,
+      completing: 1
+    },
+    normal: {
+      preparing: 12,
+      selecting: 10,
+      establishing: 12,
+      switching: 12,
+      completing: 4
+    },
+    slow: {
+      preparing: 20,
+      selecting: 15,
+      establishing: 20,
+      switching: 20,
+      completing: 5
+    }
   };
 
   private readonly UAV_POSITION = new THREE.Vector3(0, 10, 0);
+
+  /**
+   * 更新配置
+   */
+  updateConfig(newConfig: Partial<GeometricHandoverConfig>) {
+    this.config = { ...this.config, ...newConfig };
+  }
+
+  /**
+   * 獲取當前配置
+   */
+  getConfig(): GeometricHandoverConfig {
+    return { ...this.config };
+  }
+
+  /**
+   * 獲取當前階段持續時間
+   */
+  private getPhaseDurations() {
+    return this.ANIMATION_SPEED_MAP[this.config.animationSpeed];
+  }
 
   /**
    * 更新換手狀態
@@ -104,9 +174,9 @@ export class EnhancedHandoverManager {
       return;
     }
 
-    // 檢查是否需要開始尋找候選
-    if (current.elevation < this.TRIGGER_ELEVATION &&
-        currentTime - this.lastHandoverTime > this.HANDOVER_COOLDOWN) {
+    // 檢查是否需要開始尋找候選（使用動態配置）
+    if (current.elevation < this.config.triggerElevation &&
+        currentTime - this.lastHandoverTime > this.config.handoverCooldown) {
       this.enterPreparingPhase(metrics, currentTime);
     }
   }
@@ -116,15 +186,16 @@ export class EnhancedHandoverManager {
    */
   private updatePreparingPhase(metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.preparing, 1.0);
+    const durations = this.getPhaseDurations();
+    this.currentState.progress = Math.min(elapsed / durations.preparing, 1.0);
 
     const current = metrics.find(m => m.satelliteId === this.currentState.currentSatelliteId);
 
-    // 更新候選列表（排除當前衛星，選擇前6名以展示更豐富的視覺效果）
+    // 更新候選列表（使用動態配置的候選數量）
     const candidates = metrics
       .filter(m => m.satelliteId !== this.currentState.currentSatelliteId)
       .sort((a, b) => b.signalQuality - a.signalQuality)
-      .slice(0, 6)
+      .slice(0, this.config.candidateCount)
       .map(m => m.satelliteId);
 
     this.currentState.candidateSatelliteIds = candidates;
@@ -134,9 +205,10 @@ export class EnhancedHandoverManager {
       this.currentState.signalStrength.current = 1.0 - (this.currentState.progress * 0.2);
     }
 
-    // 階段完成或仰角過低，進入選擇階段
+    // 階段完成或仰角過低，進入選擇階段（使用動態配置）
+    const preparingElevation = this.config.preparingElevation ?? 30;
     if (this.currentState.progress >= 1.0 ||
-        (current && current.elevation < this.PREPARING_ELEVATION)) {
+        (current && current.elevation < preparingElevation)) {
       this.enterSelectingPhase(metrics, currentTime);
     }
   }
@@ -146,7 +218,8 @@ export class EnhancedHandoverManager {
    */
   private updateSelectingPhase(metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.selecting, 1.0);
+    const durations = this.getPhaseDurations();
+    this.currentState.progress = Math.min(elapsed / durations.selecting, 1.0);
 
     // 確保有目標
     if (!this.currentState.targetSatelliteId && this.currentState.candidateSatelliteIds.length > 0) {
@@ -170,7 +243,8 @@ export class EnhancedHandoverManager {
    */
   private updateEstablishingPhase(metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.establishing, 1.0);
+    const durations = this.getPhaseDurations();
+    this.currentState.progress = Math.min(elapsed / durations.establishing, 1.0);
 
     // 目標訊號緩慢持續增強（0.3 → 0.6）
     this.currentState.signalStrength.target = 0.3 + (this.currentState.progress * 0.3);
@@ -180,9 +254,10 @@ export class EnhancedHandoverManager {
 
     const current = metrics.find(m => m.satelliteId === this.currentState.currentSatelliteId);
 
-    // 階段完成或當前衛星仰角過低，進入切換階段
+    // 階段完成或當前衛星仰角過低，進入切換階段（使用動態配置）
+    const executeElevation = this.config.executeElevation ?? 20;
     if (this.currentState.progress >= 1.0 ||
-        (current && current.elevation < this.EXECUTE_ELEVATION)) {
+        (current && current.elevation < executeElevation)) {
       this.enterSwitchingPhase(currentTime);
     }
   }
@@ -192,7 +267,8 @@ export class EnhancedHandoverManager {
    */
   private updateSwitchingPhase(_metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.switching, 1.0);
+    const durations = this.getPhaseDurations();
+    this.currentState.progress = Math.min(elapsed / durations.switching, 1.0);
 
     // 平滑的交叉淡入淡出（0.4 → 0, 0.6 → 1.0）
     this.currentState.signalStrength.current = 0.4 * (1 - this.currentState.progress);
@@ -209,7 +285,8 @@ export class EnhancedHandoverManager {
    */
   private updateCompletingPhase(_metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.completing, 1.0);
+    const durations = this.getPhaseDurations();
+    this.currentState.progress = Math.min(elapsed / durations.completing, 1.0);
 
     // 新連接訊號達到最大
     this.currentState.signalStrength.target = 0.9 + (this.currentState.progress * 0.1);
@@ -228,11 +305,11 @@ export class EnhancedHandoverManager {
     this.phaseStartTime = currentTime;
     this.currentState.progress = 0;
 
-    // 找出候選衛星（前6名，排除當前）
+    // 找出候選衛星（使用動態配置的候選數量，排除當前）
     const candidates = metrics
       .filter(m => m.satelliteId !== this.currentState.currentSatelliteId)
       .sort((a, b) => b.signalQuality - a.signalQuality)
-      .slice(0, 6)
+      .slice(0, this.config.candidateCount)
       .map(m => m.satelliteId);
 
     this.currentState.candidateSatelliteIds = candidates;
@@ -343,6 +420,7 @@ export class EnhancedHandoverManager {
    */
   private calculateMetrics(visibleSatellites: Map<string, THREE.Vector3>): SatelliteMetrics[] {
     const metrics: SatelliteMetrics[] = [];
+    const maxDistance = this.config.maxDistance ?? 2000;
 
     visibleSatellites.forEach((position, satelliteId) => {
       const distance = this.UAV_POSITION.distanceTo(position);
@@ -354,10 +432,11 @@ export class EnhancedHandoverManager {
       const horizontalDistance = Math.sqrt(dx * dx + dz * dz);
       const elevation = Math.atan2(dy, horizontalDistance) * (180 / Math.PI);
 
-      // 計算訊號品質（基於仰角和距離）
+      // 計算訊號品質（使用動態配置的權重）
       const elevationFactor = Math.max(0, elevation / 90);
-      const distanceFactor = Math.max(0, 1 - (distance / 2000));
-      const signalQuality = elevationFactor * 0.7 + distanceFactor * 0.3;
+      const distanceFactor = Math.max(0, 1 - (distance / maxDistance));
+      const signalQuality = elevationFactor * this.config.elevationWeight +
+                           distanceFactor * (1 - this.config.elevationWeight);
 
       metrics.push({
         satelliteId,
