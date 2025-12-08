@@ -13,6 +13,14 @@ export default defineConfig({
     host: '0.0.0.0', // 允許外部訪問
     port: 3000,
     open: true,
+    watch: {
+      usePolling: true,
+      interval: 100,
+      ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**'],
+    },
+    hmr: {
+      overlay: true,
+    },
   },
   build: {
     outDir: 'dist',
