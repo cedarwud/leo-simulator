@@ -10,6 +10,7 @@ interface RSRPMethodPanelProps {
   stats: HandoverStats;
   constellation?: 'starlink' | 'oneweb';
   currentPhase?: string;
+  currentSatelliteId?: string | null; // 新增 prop
   onConfigChange?: (config: RSRPHandoverConfig) => void;
 }
 
@@ -29,6 +30,7 @@ export function RSRPMethodPanel({
   stats,
   constellation = 'starlink',
   currentPhase = 'stable',
+  currentSatelliteId,
   onConfigChange
 }: RSRPMethodPanelProps) {
   // 本地配置狀態
@@ -49,28 +51,60 @@ export function RSRPMethodPanel({
   const a4Event = stats.a3Event; // 使用 a3Event（歷史欄位名稱，實際是 A4 事件）
   const hasA4Event = a4Event !== undefined;
 
-  // 準備候選衛星列表
-  // 注意：candidatesAboveThreshold 只包含 satelliteId 和 rsrp
-  // elevation 和 distance 需要從其他地方獲取（暫時不顯示）
+  // 準備候選衛星列表 (恢復使用 candidatesAboveThreshold 以確保總是顯示)
   let candidates = a4Event?.candidatesAboveThreshold?.map(candidate => ({
     id: candidate.satelliteId,
     rsrp: candidate.rsrp,
     meetsA4: true
   })) || [];
 
-  // 在換手階段，確保目標衛星包含在候選列表中（即使它不在 candidatesAboveThreshold 中）
-  const isActiveHandoverPhase = ['selecting', 'establishing', 'switching', 'completing'].includes(currentPhase);
-  if (isActiveHandoverPhase && a4Event?.targetSatelliteId) {
-    const targetExists = candidates.some(c => c.id === a4Event.targetSatelliteId);
-    if (!targetExists && stats.targetSatelliteRSRP !== undefined) {
-      // 將目標衛星添加到候選列表開頭
+  // 找出有效的目標衛星 ID
+  // 1. Completing 階段：換手已完成但動畫仍在進行，此時目標已變成當前衛星
+  // 2. 其他階段：優先使用鎖定的目標 (root > event)，最後回退到最佳候選
+  // 注意：這裡確保了 UI 邊框與 3D 場景中的連線完全同步
+  let effectiveTargetId: string | null | undefined = stats.targetSatelliteId || a4Event?.targetSatelliteId || a4Event?.bestCandidateId;
+  
+  // 當前階段如果是 completing，表示視覺上只剩下一條連線 (當前連線)，
+  // 此時不應該在候選列表中顯示邊框，因為它已經成為當前連接而非候選。
+  if (currentPhase === 'completing') {
+    effectiveTargetId = null;
+  }
+
+  // 判斷是否處於任何與換手相關的階段 (包括準備階段)
+  const isHandoverRelatedPhase = ['preparing', 'selecting', 'establishing', 'switching', 'completing'].includes(currentPhase);
+
+  // 傳遞活躍的候選衛星 ID (僅有效的目標衛星有邊框)
+  const activeCandidateIds = (effectiveTargetId && isHandoverRelatedPhase)
+    ? [effectiveTargetId]
+    : [];
+
+  // 在與換手相關的階段，確保有效的目標衛星包含在候選列表中
+  if (isHandoverRelatedPhase && effectiveTargetId) {
+    const targetExists = candidates.some(c => c.id === effectiveTargetId);
+    if (!targetExists) {
+      // 從 stats 中獲取目標衛星的 RSRP (如果沒有則用平均 RSRP 替代)
+      const targetRSRP = stats.targetSatelliteRSRP ?? stats.averageRSRP;
+      // 將有效的目標衛星添加到候選列表開頭
       candidates = [{
-        id: a4Event.targetSatelliteId,
-        rsrp: stats.targetSatelliteRSRP,
+        id: effectiveTargetId,
+        rsrp: targetRSRP,
         meetsA4: true
       }, ...candidates];
     }
   }
+
+  // 對候選列表進行排序：
+  // 1. 活躍的候選衛星（有連線的）優先顯示
+  // 2. 其次按 RSRP 由高到低排序
+  candidates.sort((a, b) => {
+    const isActiveA = activeCandidateIds.includes(a.id);
+    const isActiveB = activeCandidateIds.includes(b.id);
+
+    if (isActiveA && !isActiveB) return -1;
+    if (!isActiveA && isActiveB) return 1;
+
+    return b.rsrp - a.rsrp;
+  });
 
   return (
     <div style={{
@@ -100,6 +134,8 @@ export function RSRPMethodPanel({
           threshold={a4Event?.threshold || -100}
           maxDisplay={5}
           constellation={constellation}
+          currentPhase={currentPhase}
+          activeCandidateIds={activeCandidateIds}
         />
       )}
 
@@ -127,7 +163,7 @@ export function RSRPMethodPanel({
             fontWeight: '600',
             letterSpacing: '0.5px'
           }}>
-            📡 信號品質監測
+            📡 Signal Quality Monitor
           </div>
         </div>
 
@@ -149,14 +185,14 @@ export function RSRPMethodPanel({
                 color: '#999999',
                 marginBottom: '6px'
               }}>
-                幾何資訊
+                Geometric Info
               </div>
               <div style={{
                 fontSize: '16px',
                 color: '#cccccc',
                 fontWeight: '500'
               }}>
-                仰角: {stats.currentSatelliteElevation.toFixed(1)}°
+                Elevation: {stats.currentSatelliteElevation.toFixed(1)}°
               </div>
             </div>
             <div>
@@ -172,7 +208,7 @@ export function RSRPMethodPanel({
                 color: '#cccccc',
                 fontWeight: '500'
               }}>
-                距離: {stats.currentSatelliteDistance.toFixed(0)} km
+                Distance: {stats.currentSatelliteDistance.toFixed(0)} km
               </div>
             </div>
           </div>
@@ -188,11 +224,11 @@ export function RSRPMethodPanel({
             max={-40}
             unit="dBm"
             zones={[
-              { threshold: -100, color: '#ff0000', label: '信號極差' },
-              { threshold: -80, color: '#ff6600', label: '需要換手' },
-              { threshold: -65, color: '#ffaa00', label: '建議換手' },
-              { threshold: -55, color: '#88ff00', label: '信號良好' },
-              { threshold: -50, color: '#00ff88', label: '信號優秀' }
+              { threshold: -100, color: '#ff0000', label: 'Bad' },
+              { threshold: -80, color: '#ff6600', label: 'Handover Req' },
+              { threshold: -65, color: '#ffaa00', label: 'Handover Rec' },
+              { threshold: -55, color: '#88ff00', label: 'Good' },
+              { threshold: -50, color: '#00ff88', label: 'Excellent' }
             ]}
           />
 
@@ -204,9 +240,9 @@ export function RSRPMethodPanel({
             max={-3}
             unit="dB"
             zones={[
-              { threshold: -19, color: '#ff0000', label: '信號極差' },
-              { threshold: -15, color: '#ffaa00', label: '建議換手' },
-              { threshold: -10, color: '#00ff88', label: '信號優秀' }
+              { threshold: -19, color: '#ff0000', label: 'Bad' },
+              { threshold: -15, color: '#ffaa00', label: 'Handover Rec' },
+              { threshold: -10, color: '#00ff88', label: 'Excellent' }
             ]}
           />
 
@@ -218,9 +254,9 @@ export function RSRPMethodPanel({
             max={30}
             unit="dB"
             zones={[
-              { threshold: -5, color: '#ff0000', label: '信號極差' },
-              { threshold: 10, color: '#ffaa00', label: '建議換手' },
-              { threshold: 20, color: '#00ff88', label: '信號優秀' }
+              { threshold: -5, color: '#ff0000', label: 'Bad' },
+              { threshold: 10, color: '#ffaa00', label: 'Handover Rec' },
+              { threshold: 20, color: '#00ff88', label: 'Excellent' }
             ]}
           />
         </div>
@@ -251,7 +287,7 @@ export function RSRPMethodPanel({
                 color: '#5599cc',
                 fontWeight: '600'
               }}>
-                換手目標
+                Handover Target
               </span>
             </div>
             <span style={{
@@ -280,9 +316,9 @@ export function RSRPMethodPanel({
             color: '#999999',
             lineHeight: '1.6'
           }}>
-            🚦 A4 事件監測
+            🚦 A4 Event Monitor
             <div style={{ marginTop: '8px' }}>
-              當前信號穩定，A4 事件未觸發
+              Signal stable, A4 event not triggered
             </div>
           </div>
         </div>
@@ -317,21 +353,21 @@ export function RSRPMethodPanel({
             fontWeight: '600',
             letterSpacing: '0.5px'
           }}>
-            ⚙️ A4 參數調整
+            ⚙️ A4 Parameter Adjustment
           </div>
         </div>
 
         {/* A4 閾值 */}
         <ParameterSlider
-          label="A4 閾值"
+          label="A4 Threshold"
           value={localConfig.a4Threshold}
           min={-110}
           max={-90}
           step={1}
           unit="dBm"
           onChange={(value) => handleConfigChange('a4Threshold', value)}
-          tooltip="RSRP 絕對閾值，超過此值的衛星成為候選"
-          impact="數值越低越容易觸發換手"
+          tooltip="Absolute RSRP threshold. Satellites above this become candidates."
+          impact="Lower value = easier to trigger handover"
           color="#0088ff"
         />
 
@@ -342,24 +378,24 @@ export function RSRPMethodPanel({
           min={5}
           max={20}
           step={1}
-          unit="秒"
+          unit="s"
           onChange={(value) => handleConfigChange('timeToTrigger', value)}
-          tooltip="事件必須持續的時間才會觸發換手"
-          impact="時間越長越穩定但反應越慢"
+          tooltip="Duration the event must persist to trigger handover."
+          impact="Longer time = more stable but slower reaction."
           color="#0088ff"
         />
 
         {/* 換手冷卻時間 */}
         <ParameterSlider
-          label="換手冷卻"
+          label="Handover Cooldown"
           value={localConfig.handoverCooldown}
           min={5}
           max={20}
           step={1}
-          unit="秒"
+          unit="s"
           onChange={(value) => handleConfigChange('handoverCooldown', value)}
-          tooltip="兩次換手之間的最小間隔時間"
-          impact="避免 ping-pong 效應"
+          tooltip="Minimum interval between handovers."
+          impact="Avoid ping-pong effect."
           color="#0088ff"
         />
 
@@ -373,7 +409,7 @@ export function RSRPMethodPanel({
           lineHeight: '1.5',
           marginTop: '12px'
         }}>
-          💡 <strong>提示</strong>：調整這些參數會立即影響 RSRP 換手行為
+          💡 <strong>Hint</strong>: Adjusting these parameters immediately affects RSRP handover behavior.
         </div>
       </div>
     </div>

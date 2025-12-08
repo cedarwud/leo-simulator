@@ -313,7 +313,7 @@ export class EnhancedHandoverManager {
       .map(m => m.satelliteId);
 
     this.currentState.candidateSatelliteIds = candidates;
-    // console.log(`🔄 進入換手準備階段，候選衛星(${candidates.length}): ${candidates.join(', ')}`);
+    // console.log(`🔄 Enter preparing phase, candidates(${candidates.length}): ${candidates.join(', ')}`);
   }
 
   /**
@@ -327,7 +327,7 @@ export class EnhancedHandoverManager {
     // 選擇最佳候選
     if (this.currentState.candidateSatelliteIds.length > 0) {
       this.currentState.targetSatelliteId = this.currentState.candidateSatelliteIds[0];
-      // console.log(`🎯 選擇換手目標: ${this.currentState.targetSatelliteId}`);
+      // console.log(`🎯 Select handover target: ${this.currentState.targetSatelliteId}`);
     }
   }
 
@@ -338,7 +338,7 @@ export class EnhancedHandoverManager {
     this.currentState.phase = 'establishing';
     this.phaseStartTime = currentTime;
     this.currentState.progress = 0;
-    // console.log(`📡 建立與目標衛星的連接`);
+    // console.log(`📡 Establishing connection with target satellite`);
   }
 
   /**
@@ -348,7 +348,7 @@ export class EnhancedHandoverManager {
     this.currentState.phase = 'switching';
     this.phaseStartTime = currentTime;
     this.currentState.progress = 0;
-    // console.log(`🔀 開始切換連接`);
+    // console.log(`🔀 Start switching connection`);
   }
 
   /**
@@ -364,7 +364,7 @@ export class EnhancedHandoverManager {
    * 完成換手
    */
   private completeHandover() {
-    // console.log(`✅ 換手完成: ${this.currentState.currentSatelliteId} → ${this.currentState.targetSatelliteId}`);
+    // console.log(`✅ Handover complete: ${this.currentState.currentSatelliteId} → ${this.currentState.targetSatelliteId}`);
 
     this.currentState.currentSatelliteId = this.currentState.targetSatelliteId;
     this.currentState.targetSatelliteId = null;
@@ -395,7 +395,7 @@ export class EnhancedHandoverManager {
       }
     };
     this.lastHandoverTime = currentTime;
-    // console.log(`📶 初始連接: ${best.satelliteId}`);
+    // console.log(`📶 Initial connection: ${best.satelliteId}`);
   }
 
   /**

@@ -38,7 +38,7 @@ export function ConstellationSelector({
         marginBottom: '4px',
         letterSpacing: '0.5px'
       }}>
-        星座選擇
+        Constellation Selection
       </div>
 
       {constellations.map((constellation) => {
@@ -91,9 +91,9 @@ export function ConstellationSelector({
               display: 'flex',
               gap: '8px'
             }}>
-              <span>{constellation.count} 顆</span>
+              <span>{constellation.count} Sats</span>
               <span>•</span>
-              <span>{constellation.visible} 可見</span>
+              <span>{constellation.visible} Visible</span>
             </div>
           </button>
         );

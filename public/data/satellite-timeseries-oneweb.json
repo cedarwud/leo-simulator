@@ -2,11 +2,11 @@
   "metadata": {
     "generated_at": "2025-11-25T14:27:35.384413",
     "generator": "convert_orbit_engine_to_timeseries.py",
-    "description": "NTPU ONEWEB 衛星完整軌道週期數據（基於 orbit-engine Stage 4）",
+    "description": "NTPU ONEWEB full orbit cycle data (based on orbit-engine Stage 4)",
     "source": "orbit-engine Stage 4 pool_optimization",
     "constellation": "oneweb",
     "orbit_period_minutes": 110.0,
-    "warning": "⚠️ 此數據包含完整軌道週期（可見+不可見時段），前端循環播放此週期"
+    "warning": "⚠️ This data contains full orbit cycle (visible+invisible), frontend loops this cycle"
   },
   "statistics": {
     "total_satellites": 26,

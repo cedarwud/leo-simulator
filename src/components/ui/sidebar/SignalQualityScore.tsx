@@ -14,15 +14,15 @@ export function SignalQualityScore({
   // 根據分數確定顏色和評級
   const getQualityInfo = (score: number) => {
     if (score >= 80) {
-      return { level: '優秀', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.15)' };
+      return { level: 'Excellent', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.15)' };
     } else if (score >= 60) {
-      return { level: '良好', color: '#88ff00', bgColor: 'rgba(136, 255, 0, 0.15)' };
+      return { level: 'Good', color: '#88ff00', bgColor: 'rgba(136, 255, 0, 0.15)' };
     } else if (score >= 40) {
-      return { level: '中等', color: '#ffaa00', bgColor: 'rgba(255, 170, 0, 0.15)' };
+      return { level: 'Fair', color: '#ffaa00', bgColor: 'rgba(255, 170, 0, 0.15)' };
     } else if (score >= 20) {
-      return { level: '較差', color: '#ff6600', bgColor: 'rgba(255, 102, 0, 0.15)' };
+      return { level: 'Poor', color: '#ff6600', bgColor: 'rgba(255, 102, 0, 0.15)' };
     } else {
-      return { level: '極差', color: '#ff0000', bgColor: 'rgba(255, 0, 0, 0.15)' };
+      return { level: 'Bad', color: '#ff0000', bgColor: 'rgba(255, 0, 0, 0.15)' };
     }
   };
 

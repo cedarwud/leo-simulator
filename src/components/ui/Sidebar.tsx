@@ -3,7 +3,7 @@ import { HandoverMethodType, HANDOVER_METHODS, HandoverStats } from '@/types/han
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { GlobalControls } from './sidebar/GlobalControls';
 
-// 混合兩個顏色（與 EnhancedSatelliteLinks 保持一致）
+// Blend two colors (consistent with EnhancedSatelliteLinks)
 function blendColors(color1: string, color2: string, ratio: number): string {
   const c1 = parseInt(color1.substring(1), 16);
   const c2 = parseInt(color2.substring(1), 16);
@@ -23,7 +23,7 @@ function blendColors(color1: string, color2: string, ratio: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
-// 側邊欄組件 - 監控與全局控制
+// Sidebar component - Monitoring and global controls
 interface SidebarProps {
   // 星座選擇
   currentConstellation: ConstellationType;
@@ -65,23 +65,23 @@ export function Sidebar({
   const method = HANDOVER_METHODS[currentMethod];
   const [connectionBorderColor, setConnectionBorderColor] = useState('#00ff88');
   const animationTimeRef = useRef(0);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number>(0);
   const startTimeRef = useRef<number | null>(null);
 
-  // 動畫循環
+  // Animation loop
   useEffect(() => {
     const animate = (time: number) => {
       if (startTimeRef.current === null) {
         startTimeRef.current = time;
       }
-      // 轉換為秒
+      // Convert to seconds
       const totalSeconds = (time - startTimeRef.current) / 1000;
       animationTimeRef.current = totalSeconds;
 
-      // 計算顏色邏輯（跟隨 EnhancedSatelliteLinks.tsx 中的 currentLink 邏輯）
+      // Color logic (follows currentLink in EnhancedSatelliteLinks.tsx)
       let color = '#00ff88';
 
-      // 為了取得 progress，我們這裡做一個簡單的模擬
+      // Simple simulation for progress
       const progress = 0.5;
 
       switch (currentPhase) {
@@ -89,25 +89,25 @@ export function Sidebar({
           color = '#00ff88';
           break;
         case 'preparing':
-          // 準備階段：從綠色漸變到橙色，加入緩慢閃爍警告效果 (0.8Hz)
+          // Preparing: Green to Orange, slow warning flicker (0.8Hz)
           const warningFlicker = Math.sin(totalSeconds * 0.8 * Math.PI * 2) * 0.5 + 0.5;
           color = blendColors('#00ff88', '#ffaa00', 0.5 + warningFlicker * 0.2);
           break;
         case 'selecting':
-          // 選擇階段：在 3D 視圖中，主連線 (currentLink) 保持綠色（因為沒有特別定義 selecting case）
-          // 因此這裡也保持綠色，而非變成目標連線的藍色
+          // Selecting: Main link stays green in 3D (no special case defined)
+          // So keep green here too, not blue like target link
           color = '#00ff88';
           break;
         case 'establishing':
-          // 建立階段：深橙色
+          // Establishing: Dark Orange
           color = '#cc8800';
           break;
         case 'switching':
-          // 切換階段：灰色
+          // Switching: Gray
           color = '#888888';
           break;
         case 'completing':
-          // 完成階段：綠色
+          // Completing: Green
           color = '#00ff88';
           break;
         default:
@@ -132,9 +132,9 @@ export function Sidebar({
 
   const methods: HandoverMethodType[] = ['rsrp', 'geometric', 'dqn'];
 
-  // 格式化衛星 ID：添加星座前綴
+  // Format Satellite ID: Add constellation prefix
   const formatSatelliteId = (satId: string | null): string => {
-    if (!satId) return '無連接';
+    if (!satId) return 'No Connection';
 
     const match = satId.match(/^(?:sat-)?(\d+)$/);
     if (!match) return satId;
@@ -144,21 +144,21 @@ export function Sidebar({
     return `${prefix}-${number}`;
   };
 
-  // 階段的視覺化標籤
+  // Phase visual labels
   const getPhaseLabel = (phase: string): { text: string; color: string; bgColor: string } => {
     switch (phase) {
       case 'stable':
-        return { text: '穩定連接', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.15)' };
+        return { text: 'Stable', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.15)' };
       case 'preparing':
-        return { text: '準備換手', color: '#ffaa00', bgColor: 'rgba(255, 170, 0, 0.15)' };
+        return { text: 'Preparing', color: '#ffaa00', bgColor: 'rgba(255, 170, 0, 0.15)' };
       case 'selecting':
-        return { text: '選擇目標', color: '#0088ff', bgColor: 'rgba(0, 136, 255, 0.15)' };
+        return { text: 'Selecting', color: '#0088ff', bgColor: 'rgba(0, 136, 255, 0.15)' };
       case 'establishing':
-        return { text: '建立連接', color: '#00aaff', bgColor: 'rgba(0, 170, 255, 0.15)' };
+        return { text: 'Establishing', color: '#00aaff', bgColor: 'rgba(0, 170, 255, 0.15)' };
       case 'switching':
-        return { text: '切換中', color: '#ff8800', bgColor: 'rgba(255, 136, 0, 0.15)' };
+        return { text: 'Switching', color: '#ff8800', bgColor: 'rgba(255, 136, 0, 0.15)' };
       case 'completing':
-        return { text: '完成換手', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.15)' };
+        return { text: 'Completing', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.15)' };
       default:
         return { text: phase, color: '#999999', bgColor: 'rgba(255, 255, 255, 0.05)' };
     }
@@ -195,7 +195,7 @@ export function Sidebar({
             letterSpacing: '0.5px',
             marginBottom: '8px'
           }}>
-            🛰️ LEO 衛星換手模擬器
+            🛰️ LEO Satellite Handover Simulator
           </div>
           <div style={{
             color: '#999999',
@@ -223,7 +223,7 @@ export function Sidebar({
               fontWeight: '600',
               marginBottom: '12px'
             }}>
-              🌍 衛星星座
+              🌍 Constellation
             </div>
             <div style={{
               display: 'flex',
@@ -278,7 +278,7 @@ export function Sidebar({
                 fontWeight: '600',
                 letterSpacing: '0.5px'
               }}>
-                📡 當前連接
+                📡 Current Connection
               </div>
             </div>
 
@@ -298,7 +298,7 @@ export function Sidebar({
                 marginBottom: '12px'
               }}>
                 <div style={{ fontSize: '14px', color: '#bbbbbb' }}>
-                  衛星 ID
+                  Satellite ID
                 </div>
                 <div style={{
                   fontSize: '18px',
@@ -318,7 +318,7 @@ export function Sidebar({
                 marginBottom: stats.currentSatelliteElevation !== undefined ? '12px' : '0'
               }}>
                 <div style={{ fontSize: '14px', color: '#bbbbbb' }}>
-                  階段
+                  Phase
                 </div>
                 <div style={{
                   fontSize: '14px',
@@ -344,7 +344,7 @@ export function Sidebar({
                 }}>
                   <div>
                     <div style={{ fontSize: '14px', color: '#bbbbbb', marginBottom: '6px' }}>
-                      仰角
+                      Elevation
                     </div>
                     <div style={{ fontSize: '20px', color: method.color, fontWeight: '600', fontFamily: 'monospace' }}>
                       {stats.currentSatelliteElevation.toFixed(1)}°
@@ -352,7 +352,7 @@ export function Sidebar({
                   </div>
                   <div>
                     <div style={{ fontSize: '14px', color: '#bbbbbb', marginBottom: '6px' }}>
-                      距離
+                      Distance
                     </div>
                     <div style={{ fontSize: '20px', color: method.color, fontWeight: '600', fontFamily: 'monospace' }}>
                       {stats.currentSatelliteDistance.toFixed(0)} km
@@ -371,7 +371,7 @@ export function Sidebar({
               fontWeight: '600',
               marginBottom: '12px'
             }}>
-              🔄 換手方法
+              🔄 Handover Method
             </div>
             <div style={{
               display: 'flex',
@@ -465,7 +465,7 @@ export function Sidebar({
                 fontWeight: '600',
                 letterSpacing: '0.5px'
               }}>
-                📊 性能統計
+                📊 Performance Stats
               </div>
             </div>
 
@@ -484,7 +484,7 @@ export function Sidebar({
                 border: '1px solid rgba(255, 255, 255, 0.1)'
               }}>
                 <div style={{ fontSize: '13px', color: '#bbbbbb', marginBottom: '8px' }}>
-                  總換手次數
+                  Total Handovers
                 </div>
                 <div style={{ fontSize: '24px', color: method.color, fontWeight: '600', fontFamily: 'monospace' }}>
                   {stats.totalHandovers}
@@ -499,7 +499,7 @@ export function Sidebar({
                 border: '1px solid rgba(255, 255, 255, 0.1)'
               }}>
                 <div style={{ fontSize: '13px', color: '#bbbbbb', marginBottom: '8px' }}>
-                  Ping-pong
+                  Ping-pong Events
                 </div>
                 <div style={{
                   display: 'flex',
@@ -525,7 +525,7 @@ export function Sidebar({
                 border: '1px solid rgba(255, 255, 255, 0.1)'
               }}>
                 <div style={{ fontSize: '13px', color: '#bbbbbb', marginBottom: '8px' }}>
-                  服務中斷
+                  Interruptions
                 </div>
                 <div style={{ fontSize: '24px', color: '#ff0000', fontWeight: '600', fontFamily: 'monospace' }}>
                   {stats.serviceInterruptions}
@@ -540,7 +540,7 @@ export function Sidebar({
                 border: '1px solid rgba(255, 255, 255, 0.1)'
               }}>
                 <div style={{ fontSize: '13px', color: '#bbbbbb', marginBottom: '8px' }}>
-                  運行時間
+                  Runtime
                 </div>
                 <div style={{
                   display: 'flex',
@@ -551,7 +551,7 @@ export function Sidebar({
                     {(stats.elapsedTime / 60).toFixed(1)}
                   </div>
                   <div style={{ fontSize: '13px', color: '#999999' }}>
-                    分鐘
+                    min
                   </div>
                 </div>
               </div>

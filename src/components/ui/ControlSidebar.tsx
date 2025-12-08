@@ -98,7 +98,7 @@ export function ControlSidebar({
             fontWeight: '700',
             letterSpacing: '0.5px'
           }}>
-            控制面板
+            Control Panel
           </div>
           <button
             onClick={() => setIsCollapsed(true)}
@@ -121,7 +121,7 @@ export function ControlSidebar({
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
             }}
-            title="收合側邊欄"
+            title="Collapse Sidebar"
           >
             ◀
           </button>
@@ -137,7 +137,7 @@ export function ControlSidebar({
           }}
         >
           {/* 星座選擇區 */}
-          <SectionTitle>星座選擇</SectionTitle>
+          <SectionTitle>Constellation Selection</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
             {constellations.map((constellation) => {
               const isActive = currentConstellation === constellation.value;
@@ -188,9 +188,9 @@ export function ControlSidebar({
                     display: 'flex',
                     gap: '8px'
                   }}>
-                    <span>{constellation.count} 顆</span>
+                    <span>{constellation.count} Sats</span>
                     <span>•</span>
-                    <span>{constellation.visible} 可見</span>
+                    <span>{constellation.visible} Visible</span>
                   </div>
                 </button>
               );
@@ -198,7 +198,7 @@ export function ControlSidebar({
           </div>
 
           {/* 換手方法選擇區 */}
-          <SectionTitle>換手方法</SectionTitle>
+          <SectionTitle>Handover Method</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
             {methods.map((methodId) => {
               const methodInfo = HANDOVER_METHODS[methodId];
@@ -274,7 +274,7 @@ export function ControlSidebar({
           </div>
 
           {/* 性能指標區 */}
-          <SectionTitle>性能指標</SectionTitle>
+          <SectionTitle>Performance Metrics</SectionTitle>
           <div style={{
             backgroundColor: 'rgba(0, 0, 0, 0.4)',
             padding: '14px',
@@ -289,13 +289,13 @@ export function ControlSidebar({
               borderRadius: '6px'
             }}>
               <div style={{ fontSize: '11px', color: '#bbbbbb', marginBottom: '4px' }}>
-                當前連接
+                Current Connection
               </div>
               <div style={{ fontSize: '14px', color: '#ffffff', fontWeight: '600' }}>
-                {currentSatelliteId || '無連接'}
+                {currentSatelliteId || 'No Connection'}
               </div>
               <div style={{ fontSize: '11px', color: '#999999', marginTop: '2px' }}>
-                階段: {currentPhase}
+                Phase: {currentPhase}
               </div>
             </div>
 
@@ -307,7 +307,7 @@ export function ControlSidebar({
               marginBottom: '12px'
             }}>
               <MetricCard
-                label="換手次數"
+                label="Handovers"
                 value={stats.totalHandovers.toString()}
                 unit=""
                 color={method.color}
@@ -319,27 +319,27 @@ export function ControlSidebar({
                 color={pingPongRate > 20 ? '#ff6600' : method.color}
               />
               <MetricCard
-                label="平均 RSRP"
+                label="Avg RSRP"
                 value={formatNumber(stats.averageRSRP, 1)}
                 unit="dBm"
                 color={getRSRPColor(stats.averageRSRP)}
               />
               <MetricCard
-                label="平均 SINR"
+                label="Avg SINR"
                 value={formatNumber(stats.averageSINR, 1)}
                 unit="dB"
                 color={stats.averageSINR > 10 ? '#00ff88' : '#ffaa00'}
               />
               <MetricCard
-                label="連接時長"
+                label="Duration"
                 value={formatNumber(stats.connectionDuration, 0)}
-                unit="秒"
+                unit="s"
                 color={method.color}
               />
               <MetricCard
-                label="服務中斷"
+                label="Interruptions"
                 value={stats.serviceInterruptions.toString()}
-                unit="次"
+                unit=""
                 color={stats.serviceInterruptions > 0 ? '#ff0000' : '#00ff88'}
               />
             </div>
@@ -353,7 +353,7 @@ export function ControlSidebar({
               alignItems: 'center'
             }}>
               <div style={{ fontSize: '12px', color: '#999999' }}>
-                運行時間
+                Runtime
               </div>
               <div style={{ fontSize: '14px', color: method.color, fontWeight: '600' }}>
                 {formatTime(stats.elapsedTime)}
@@ -371,7 +371,7 @@ export function ControlSidebar({
             color: '#999999',
             lineHeight: '1.5'
           }}>
-            學術對比研究：不同換手策略的性能評估與對比
+            Academic Comparative Study: Performance evaluation of different strategies
           </div>
         </div>
       </div>
@@ -407,7 +407,7 @@ export function ControlSidebar({
             e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.85)';
             e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
           }}
-          title="展開側邊欄"
+          title="Expand Sidebar"
         >
           ☰
         </button>

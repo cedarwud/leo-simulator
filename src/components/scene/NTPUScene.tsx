@@ -7,7 +7,7 @@ export function NTPUScene() {
   const { scene } = useGLTF(NTPU_CONFIG.scene.modelPath);
   const groupRef = useRef<THREE.Group>(null);
 
-  // 處理場景材質，與 ntn-stack 完全相同
+  // Process scene materials, same as ntn-stack
   const processedScene = useMemo(() => {
     const clonedScene = scene.clone(true);
 
@@ -17,7 +17,7 @@ export function NTPUScene() {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
 
-        // 將 MeshBasicMaterial 轉換為 MeshStandardMaterial
+        // Convert MeshBasicMaterial to MeshStandardMaterial
         if (mesh.material) {
           if (Array.isArray(mesh.material)) {
             mesh.material = mesh.material.map((mat) => {
@@ -50,5 +50,5 @@ export function NTPUScene() {
   );
 }
 
-// 預載入模型
+// Preload model
 useGLTF.preload(NTPU_CONFIG.scene.modelPath);

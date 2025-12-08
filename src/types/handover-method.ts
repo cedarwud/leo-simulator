@@ -18,20 +18,20 @@ export const HANDOVER_METHODS: Record<HandoverMethodType, HandoverMethodInfo> = 
   geometric: {
     id: 'geometric',
     name: 'Geometric',
-    description: '基於仰角和距離的幾何計算（70% 仰角 + 30% 距離）',
+    description: 'Geometric calculation based on elevation and distance (70% Elevation + 30% Distance)',
     color: '#00ff88',
   },
   rsrp: {
     id: 'rsrp',
     name: 'RSRP-Based (A4)',
-    description: '3GPP A4 事件換手（絕對閾值：鄰居 RSRP > -85 dBm）',
+    description: '3GPP A4 Event Handover (Absolute Threshold: Neighbor RSRP > -85 dBm)',
     academicReference: 'Yu et al. 2022 - A4 Event in LEO',
     color: '#0088ff',
   },
   dqn: {
     id: 'dqn',
     name: 'DQN-Based',
-    description: '深度 Q 網絡強化學習決策（70.6% 換手降低）',
+    description: 'Deep Q-Network RL Decision (70.6% handover reduction)',
     academicReference: 'handover-rl DQN Agent',
     color: '#ff8800',
   },
@@ -49,6 +49,7 @@ export interface HandoverStats {
   connectionDuration: number;    // 平均連接持續時間 (秒)
   serviceInterruptions: number;  // 服務中斷次數
   elapsedTime: number;           // 已運行時間 (秒)
+  targetSatelliteId?: string | null; // 最終鎖定的目標衛星 ID (整個換手過程中的主要追蹤目標)
 
   // 擴展資訊（用於更豐富的UI顯示）
   visibleSatellites?: number;    // 可見衛星數量

@@ -302,7 +302,7 @@ export function DualSemiCircleGauge({
             marginBottom: '8px',
             textAlign: 'center'
           }}>
-            當前
+            Current
           </div>
           <SemiCircleGauge
             label=""
@@ -325,7 +325,7 @@ export function DualSemiCircleGauge({
             marginBottom: '8px',
             textAlign: 'center'
           }}>
-            目標
+            Target
           </div>
           <SemiCircleGauge
             label=""

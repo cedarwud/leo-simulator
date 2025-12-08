@@ -5,6 +5,7 @@ import { SatelliteOrbitCalculator } from '@/utils/satellite/SatelliteOrbitCalcul
 import { EnhancedHandoverManager } from '@/utils/satellite/EnhancedHandoverManager';
 import { RSRPHandoverManager } from '@/utils/satellite/RSRPHandoverManager';
 import { EnhancedSatelliteLinks } from './EnhancedSatelliteLinks';
+import { SatelliteLabel } from './SatelliteLabel';
 import { HandoverState } from '@/types/handover';
 import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { calculatePathLoss } from '@/utils/satellite/PathLossCalculator';
@@ -74,6 +75,8 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
   const [error, setError] = useState<string | null>(null);
   const elapsedTimeRef = useRef(0);
   const lastLogTimeRef = useRef(-1);
+  
+  const labelsRef = useRef<Map<string, THREE.Group>>(new Map()); // Ref for labels
 
   // 判斷是否為 OneWeb 星座
   const isOneWeb = dataUrl.toLowerCase().includes('oneweb');
@@ -137,7 +140,7 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
     // 更新換手狀態
     const newHandoverState = handoverManager.update(visibleSatellites, elapsedTimeRef.current);
     setHandoverState(newHandoverState);
-    setVisibleSatellitesState(visibleSatellites);
+    setVisibleSatellitesState(visibleSatellites); // Restored to fix missing links
 
     // 調試 log（換手狀態監控）
     const currentSecond = Math.floor(elapsedTimeRef.current);
@@ -249,7 +252,8 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
         totalSatellites: calculator.getAllSatelliteIds().length,
         currentSatelliteElevation: currentSatInfo?.elevation,
         currentSatelliteDistance: currentSatInfo?.distance,
-        candidateSatellites: newHandoverState.candidateSatelliteIds,
+        // 只傳遞當前可見的候選衛星 ID，確保 UI 邊框數量與 3D 連線數量一致
+        candidateSatellites: newHandoverState.candidateSatelliteIds.filter(id => visibleSatellites.has(id)),
         // 目標衛星數據
         targetSatelliteRSRP: targetRSRP,
         targetSatelliteRSRQ: targetRSRQ,
@@ -264,7 +268,9 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
           total: calculatePathLoss(currentSatInfo.distance, currentSatInfo.elevation).total
         } : undefined,
         // A3 事件狀態
-        a3Event: newHandoverState.a3Event
+        a3Event: newHandoverState.a3Event,
+        // 添加根層級的 targetSatelliteId，確保 UI 能追蹤到整個換手過程中的目標衛星
+        targetSatelliteId: newHandoverState.targetSatelliteId
       };
 
       onStatsUpdate(extendedStats, currentSatId, newHandoverState.phase);
@@ -287,10 +293,38 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
       const isCurrentSatellite = satelliteId === newHandoverState.currentSatelliteId;
       const isTargetSatellite = satelliteId === newHandoverState.targetSatelliteId;
 
+      // Update Label Position & Visibility
+      const labelGroup = labelsRef.current.get(satelliteId);
+
       if (position) {
         // 衛星可見：更新位置並顯示
         mesh.position.set(position.x, position.y, position.z);
         mesh.visible = true;
+
+        // Update Label
+        if (labelGroup) {
+          labelGroup.visible = true;
+          // Ensure label is above the model (offset logic handles scale)
+          // But wait, the labelGroup is unscaled in the scene root? No, it's in the group.
+          // Actually, SatelliteLabel uses Billboard at `position`.
+          // Since we moved to imperative updates, we need to set the position on the group.
+          // Note: The SatelliteLabel component logic sets position on mount/prop change.
+          // We need to override it or ensure the Ref points to the group we can move.
+          // SatelliteLabel renders a Billboard. The ref we get is the Billboard (Group).
+          // We can set its position directly.
+          
+          // Re-apply offset logic here for imperative update
+          // OneWeb scale 60 -> offset 150
+          // Starlink scale 6 -> offset 40
+          // Wait, isOneWeb is available in scope.
+          // Check if we need to apply the offset manually or if Billboard handles it?
+          // The previous SatelliteLabel implementation calculated `labelPosition` based on prop `position`.
+          // But now we removed the `position` prop and use imperative updates.
+          // So we MUST calculate the final position here.
+          
+          const offset = isOneWeb ? 65 : 40;
+          labelGroup.position.set(position.x, position.y + offset, position.z);
+        }
 
         // 設置透明度和縮放（當前衛星高亮）
         mesh.traverse((child) => {
@@ -301,25 +335,6 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
               materials.forEach((mat) => {
                 mat.transparent = true;
                 mat.opacity = 1.0; // 可見衛星完全不透明
-
-                // 檢查材質是否支持發光屬性
-                // if ('emissive' in mat && 'emissiveIntensity' in mat) {
-                //   // 當前連接衛星：綠色發光
-                //   if (isCurrentSatellite) {
-                //     (mat as any).emissive = new THREE.Color(0x00ff88);
-                //     (mat as any).emissiveIntensity = 0.8;
-                //   }
-                //   // 目標衛星：藍色發光
-                //   else if (isTargetSatellite) {
-                //     (mat as any).emissive = new THREE.Color(0x0088ff);
-                //     (mat as any).emissiveIntensity = 0.6;
-                //   }
-                //   // 其他可見衛星：輕微發光
-                //   else {
-                //     (mat as any).emissive = new THREE.Color(0x444444);
-                //     (mat as any).emissiveIntensity = 0.2;
-                //   }
-                // }
               });
             }
           }
@@ -337,6 +352,9 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
       } else {
         // 衛星不可見：完全隱藏
         mesh.visible = false;
+        if (labelGroup) {
+          labelGroup.visible = false;
+        }
       }
     });
   });
@@ -354,6 +372,18 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
       model: scene.clone(true),
     }));
   }, [isLoaded, calculator, scene]);
+
+  // Satellite Labels - Render ALL and update imperatively (Defined before early returns)
+  const satelliteLabels = useMemo(() => satelliteModels.map(({ id }) => (
+    <SatelliteLabel
+      key={`label-${id}`}
+      ref={(el) => { if (el) labelsRef.current.set(id, el); }}
+      satelliteId={id}
+      constellation={isOneWeb ? 'oneweb' : 'starlink'}
+      isCurrentSatellite={id === handoverState?.currentSatelliteId}
+      isTargetSatellite={id === handoverState?.targetSatelliteId}
+    />
+  )), [satelliteModels, isOneWeb, handoverState?.currentSatelliteId, handoverState?.targetSatelliteId]);
 
   if (error) {
     console.error('衛星系統錯誤:', error);
@@ -389,6 +419,9 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
           handoverState={handoverState}
         />
       )}
+
+      {/* Satellite Labels */}
+      {satelliteLabels}
     </group>
   );
 }

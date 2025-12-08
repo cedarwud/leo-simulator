@@ -13,35 +13,35 @@ export interface GeometricConfig {
   elevationWeight: number;
   triggerElevation: number;
   handoverCooldown: number;
-  // 注意：animationSpeed 和 candidateCount 已移至 CommonVisualControls
+  // Note: animationSpeed and candidateCount moved to CommonVisualControls
 }
 
-// 預設配置
+// Default configuration
 const DEFAULT_CONFIG: GeometricConfig = {
   elevationWeight: 0.7,
   triggerElevation: 45,
   handoverCooldown: 5
 };
 
-// 預設配置選項
+// Preset configuration options
 const PRESET_CONFIGS = {
   conservative: {
-    name: '保守模式',
-    desc: '減少換手，優先穩定',
+    name: 'Conservative',
+    desc: 'Reduce handovers, prioritize stability',
     elevationWeight: 0.8,
     triggerElevation: 35,
     handoverCooldown: 10
   },
   balanced: {
-    name: '平衡模式',
-    desc: '當前推薦設定',
+    name: 'Balanced',
+    desc: 'Current recommended settings',
     elevationWeight: 0.7,
     triggerElevation: 45,
     handoverCooldown: 5
   },
   aggressive: {
-    name: '激進模式',
-    desc: '快速反應，頻繁換手',
+    name: 'Aggressive',
+    desc: 'Fast reaction, frequent handovers',
     elevationWeight: 0.6,
     triggerElevation: 50,
     handoverCooldown: 3
@@ -67,7 +67,7 @@ export function GeometricMethodPanel({ stats, onConfigChange }: GeometricMethodP
     });
   };
 
-  // 計算當前衛星的信號品質分數（基於仰角和距離）
+  // Calculate signal quality score (based on elevation and distance)
   const calculateSignalQuality = () => {
     if (!stats.currentSatelliteElevation || !stats.currentSatelliteDistance) {
       return 0;
@@ -108,37 +108,37 @@ export function GeometricMethodPanel({ stats, onConfigChange }: GeometricMethodP
             fontWeight: '600',
             letterSpacing: '0.5px'
           }}>
-            🎯 決策參數可視化
+            🎯 Decision Parameters Visualization
           </div>
         </div>
 
         {/* 仰角因素 */}
         <DecisionFactorCard
-          label="仰角"
+          label="Elevation"
           value={elevation}
           weight={config.elevationWeight}
           unit="°"
           max={90}
           color="#00ff88"
-          impact="決策主要因素"
+          impact="Primary decision factor"
         />
 
         {/* 距離因素 */}
         <DecisionFactorCard
-          label="距離"
+          label="Distance"
           value={distance}
           weight={1 - config.elevationWeight}
           unit="km"
           max={2000}
           color="#0088ff"
-          impact="輔助決策因素"
+          impact="Secondary decision factor"
         />
 
         {/* 信號品質分數 */}
         <SignalQualityScore
           value={signalQuality}
-          label="信號品質分數"
-          description="基於仰角和距離的綜合評分"
+          label="Signal Quality Score"
+          description="Comprehensive score based on elevation and distance"
         />
       </div>
 
@@ -164,7 +164,7 @@ export function GeometricMethodPanel({ stats, onConfigChange }: GeometricMethodP
               fontWeight: '600',
               letterSpacing: '0.5px'
             }}>
-              ⚙️ 參數調整
+              ⚙️ Parameter Adjustment
             </div>
           </div>
           {/* 預設配置選擇器 */}
@@ -186,50 +186,50 @@ export function GeometricMethodPanel({ stats, onConfigChange }: GeometricMethodP
               outline: 'none'
             }}
           >
-            <option value="">快速配置 ▼</option>
-            <option value="conservative">保守模式</option>
-            <option value="balanced">平衡模式</option>
-            <option value="aggressive">激進模式</option>
+            <option value="">Quick Config ▼</option>
+            <option value="conservative">Conservative</option>
+            <option value="balanced">Balanced</option>
+            <option value="aggressive">Aggressive</option>
           </select>
         </div>
 
         {/* 核心參數 */}
         <ParameterSlider
-          label="仰角重要性"
+          label="Elevation Weight"
           value={config.elevationWeight}
           min={0.5}
           max={0.9}
           step={0.05}
           unit="%"
           onChange={(value) => updateConfig({ elevationWeight: value })}
-          tooltip="決定換手時優先選擇高仰角還是近距離的衛星。數值越高，越優先選擇高仰角衛星（更穩定）"
-          impact="優先選擇高仰角衛星"
+          tooltip="Prioritize high elevation vs close distance. Higher value favors high elevation (more stable)."
+          impact="Prioritize high elevation satellites"
           color="#00ff88"
         />
 
         <ParameterSlider
-          label="開始換手仰角"
+          label="Trigger Elevation"
           value={config.triggerElevation}
           min={30}
           max={60}
           step={5}
           unit="°"
           onChange={(value) => updateConfig({ triggerElevation: value })}
-          tooltip="當前衛星仰角低於此值時，系統開始尋找新衛星。數值越大，越早開始換手"
-          impact="數值越大越早換手"
+          tooltip="Start looking for new satellites when elevation drops below this. Higher value = earlier handover."
+          impact="Higher value = earlier handover"
           color="#00ff88"
         />
 
         <ParameterSlider
-          label="換手冷卻時間"
+          label="Handover Cooldown"
           value={config.handoverCooldown}
           min={3}
           max={15}
           step={1}
-          unit="秒"
+          unit="s"
           onChange={(value) => updateConfig({ handoverCooldown: value })}
-          tooltip="兩次換手之間的最短間隔時間，用於防止頻繁切換（Ping-Pong）。時間越長，系統越穩定"
-          impact="防止頻繁換手"
+          tooltip="Min interval between handovers to prevent ping-pong. Longer time = more stable."
+          impact="Prevent frequent handovers"
           color="#ffaa00"
         />
 
@@ -262,7 +262,7 @@ export function GeometricMethodPanel({ stats, onConfigChange }: GeometricMethodP
           }}
         >
           <span>{showAdvanced ? '🔼' : '🔽'}</span>
-          高級設定 {showAdvanced ? '（點擊收起）' : '（點擊展開）'}
+          Advanced Settings {showAdvanced ? '(Click to collapse)' : '(Click to expand)'}
         </button>
 
         {showAdvanced && (
@@ -278,11 +278,11 @@ export function GeometricMethodPanel({ stats, onConfigChange }: GeometricMethodP
               color: '#999999',
               lineHeight: '1.6'
             }}>
-              高級設定功能開發中，將包含：
+              Advanced settings under development:
               <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-                <li>準備仰角閾值（20-50°）</li>
-                <li>執行仰角閾值（10-30°）</li>
-                <li>最大距離歸一化（1000-3000 km）</li>
+                <li>Preparing Elevation Threshold (20-50°)</li>
+                <li>Execution Elevation Threshold (10-30°)</li>
+                <li>Max Distance Normalization (1000-3000 km)</li>
               </ul>
             </div>
           </div>
@@ -315,7 +315,7 @@ export function GeometricMethodPanel({ stats, onConfigChange }: GeometricMethodP
             e.currentTarget.style.backgroundColor = 'rgba(255, 102, 0, 0.2)';
           }}
         >
-          🔄 重置為預設值
+          🔄 Reset to Default
         </button>
       </div>
     </div>

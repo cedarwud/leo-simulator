@@ -16,27 +16,27 @@ export function HandoverLegend({ phase, show }: HandoverLegendProps) {
     switch (phase) {
       case 'preparing':
         return [
-          { color: '#ffaa00', label: '當前連線（減弱中）', type: 'solid' },
-          { color: '#88aaff', label: '候選衛星', type: 'dashed' }
+          { color: '#ffaa00', label: 'Current Link (Weakening)', type: 'solid' },
+          { color: '#88aaff', label: 'Candidate Satellite', type: 'dashed' }
         ];
       case 'selecting':
         return [
-          { color: '#ffaa00', label: '當前連線', type: 'solid' },
-          { color: '#00aaff', label: '選定目標', type: 'dashed' }
+          { color: '#ffaa00', label: 'Current Link', type: 'solid' },
+          { color: '#00aaff', label: 'Selected Target', type: 'dashed' }
         ];
       case 'establishing':
         return [
-          { color: '#cc8800', label: '舊連線（衰減中）', type: 'solid' },
-          { color: '#0088ff', label: '新連線（建立中）', type: 'solid' }
+          { color: '#cc8800', label: 'Old Link (Fading)', type: 'solid' },
+          { color: '#0088ff', label: 'New Link (Establishing)', type: 'solid' }
         ];
       case 'switching':
         return [
-          { color: '#888888', label: '舊連線（斷開中）', type: 'solid' },
-          { color: '#0088ff', label: '新連線（接管中）', type: 'solid' }
+          { color: '#888888', label: 'Old Link (Disconnecting)', type: 'solid' },
+          { color: '#0088ff', label: 'New Link (Taking Over)', type: 'solid' }
         ];
       case 'completing':
         return [
-          { color: '#00ff88', label: '新連線（已建立）', type: 'solid' }
+          { color: '#00ff88', label: 'New Link (Established)', type: 'solid' }
         ];
       default:
         return [];
@@ -78,7 +78,7 @@ export function HandoverLegend({ phase, show }: HandoverLegendProps) {
         alignItems: 'center',
         gap: '8px'
       }}>
-        🔄 連線狀態圖例
+        🔄 Connection Status Legend
       </div>
 
       {/* 圖例項目 */}

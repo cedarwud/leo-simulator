@@ -1,9 +1,8 @@
-import React from 'react';
-import { Text } from '@react-three/drei';
+import React, { forwardRef } from 'react';
+import { Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface SatelliteLabelProps {
-  position: THREE.Vector3;
   satelliteId: string;
   constellation?: string;
   isCurrentSatellite?: boolean;
@@ -14,21 +13,12 @@ interface SatelliteLabelProps {
  * 衛星標籤組件
  * 顯示星座名稱和衛星編號
  */
-export function SatelliteLabel({
-  position,
+export const SatelliteLabel = React.memo(forwardRef<THREE.Group, SatelliteLabelProps>(({
   satelliteId,
   constellation = 'unknown',
   isCurrentSatellite = false,
   isTargetSatellite = false
-}: SatelliteLabelProps) {
-  // 標籤位置：衛星正上方偏移（OneWeb 衛星更大，需要更高的偏移）
-  const labelOffset = constellation.toLowerCase() === 'oneweb' ? 75 : 25;
-  const labelPosition = new THREE.Vector3(
-    position.x,
-    position.y + labelOffset,
-    position.z
-  );
-
+}, ref) => {
   // 根據衛星狀態設置顏色
   let color = '#aaaaaa'; // 普通衛星：灰色
   if (isCurrentSatellite) {
@@ -37,24 +27,32 @@ export function SatelliteLabel({
     color = '#0088ff'; // 目標衛星：藍色
   }
 
-  // 格式化顯示文字：STARLINK-45061
+  // Format display text: STARLINK-45061
   const constellationName = constellation.toUpperCase();
-  const displayText = `${constellationName}-${satelliteId}`;
+  const satelliteNumber = satelliteId.replace(/^sat-/, '');
+  const displayText = `${constellationName}-${satelliteNumber}`;
 
   // OneWeb 衛星更大，字體也相應調整
-  const fontSize = constellation.toLowerCase() === 'oneweb' ? 24 : 8;
+  const fontSize = constellation.toLowerCase() === 'oneweb' ? 24 : 12;
 
   return (
-    <Text
-      position={labelPosition}
-      fontSize={fontSize}
-      color={color}
-      anchorX="center"
-      anchorY="middle"
-      outlineWidth={0.5}
-      outlineColor="#000000"
+    <Billboard
+      ref={ref}
+      follow={true}
+      lockX={false}
+      lockY={false}
+      lockZ={false}
     >
-      {displayText}
-    </Text>
+      <Text
+        fontSize={fontSize}
+        color={color}
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={constellation.toLowerCase() === 'oneweb' ? 2 : 0.5}
+        outlineColor="#000000"
+      >
+        {displayText}
+      </Text>
+    </Billboard>
   );
-}
+}));

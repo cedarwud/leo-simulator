@@ -190,7 +190,7 @@ export function ParameterSlider({
         color: '#999999',
         paddingLeft: '4px'
       }}>
-        └─ 影響：{impact}
+        └─ Impact: {impact}
       </div>
     </div>
   );

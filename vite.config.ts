@@ -10,7 +10,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0', // 允許外部訪問（本地和遠端都支援）
+    host: '0.0.0.0', // Allow external access (supports local and remote)
     port: 3000,
     open: true,
   },

@@ -66,9 +66,9 @@ export function RightPanel({
             letterSpacing: '0.5px',
             textAlign: 'center'
           }}>
-            {currentMethod === 'geometric' && '📊 幾何決策詳情'}
-            {currentMethod === 'rsrp' && '📶 RSRP 決策詳情'}
-            {currentMethod === 'dqn' && '🤖 DQN 決策詳情'}
+            {currentMethod === 'geometric' && '📊 Geometric Decision Details'}
+            {currentMethod === 'rsrp' && '📶 RSRP Decision Details'}
+            {currentMethod === 'dqn' && '🤖 DQN Decision Details'}
           </div>
         </div>
 
@@ -111,9 +111,9 @@ export function RightPanel({
                 color: '#999999',
                 lineHeight: '1.6'
               }}>
-                🤖 DQN 方法開發中
+                🤖 DQN Method Under Development
                 <div style={{ marginTop: '8px' }}>
-                  深度強化學習換手策略即將推出
+                  Deep Reinforcement Learning strategy coming soon
                 </div>
               </div>
             </div>

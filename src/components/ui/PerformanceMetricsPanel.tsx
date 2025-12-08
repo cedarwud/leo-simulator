@@ -80,7 +80,7 @@ export function PerformanceMetricsPanel({
           fontWeight: '600',
           letterSpacing: '0.5px'
         }}>
-          性能指標 - {method.name}
+          Performance Metrics - {method.name}
         </div>
       </div>
 
@@ -92,13 +92,13 @@ export function PerformanceMetricsPanel({
         borderRadius: '4px'
       }}>
         <div style={{ fontSize: '11px', color: '#bbbbbb', marginBottom: '4px' }}>
-          當前連接
+          Current Connection
         </div>
         <div style={{ fontSize: '14px', color: '#ffffff' }}>
-          {currentSatelliteId || '無連接'}
+          {currentSatelliteId || 'No Connection'}
         </div>
         <div style={{ fontSize: '11px', color: '#999999', marginTop: '2px' }}>
-          階段: {currentPhase}
+          Phase: {currentPhase}
         </div>
       </div>
 
@@ -111,7 +111,7 @@ export function PerformanceMetricsPanel({
       }}>
         {/* 換手次數 */}
         <MetricCard
-          label="換手次數"
+          label="Handovers"
           value={stats.totalHandovers.toString()}
           unit=""
           color={method.color}
@@ -127,7 +127,7 @@ export function PerformanceMetricsPanel({
 
         {/* 平均 RSRP */}
         <MetricCard
-          label="平均 RSRP"
+          label="Avg RSRP"
           value={formatNumber(stats.averageRSRP, 1)}
           unit="dBm"
           color={getRSRPColor(stats.averageRSRP)}
@@ -135,7 +135,7 @@ export function PerformanceMetricsPanel({
 
         {/* 平均 SINR */}
         <MetricCard
-          label="平均 SINR"
+          label="Avg SINR"
           value={formatNumber(stats.averageSINR, 1)}
           unit="dB"
           color={stats.averageSINR > 10 ? '#00ff88' : '#ffaa00'}
@@ -143,17 +143,17 @@ export function PerformanceMetricsPanel({
 
         {/* 連接時長 */}
         <MetricCard
-          label="連接時長"
+          label="Duration"
           value={formatNumber(stats.connectionDuration, 0)}
-          unit="秒"
+          unit="s"
           color={method.color}
         />
 
         {/* 服務中斷 */}
         <MetricCard
-          label="服務中斷"
+          label="Interruptions"
           value={stats.serviceInterruptions.toString()}
-          unit="次"
+          unit=""
           color={stats.serviceInterruptions > 0 ? '#ff0000' : '#00ff88'}
         />
       </div>
@@ -167,7 +167,7 @@ export function PerformanceMetricsPanel({
         alignItems: 'center'
       }}>
         <div style={{ fontSize: '12px', color: '#999999' }}>
-          運行時間
+          Runtime
         </div>
         <div style={{ fontSize: '14px', color: method.color, fontWeight: '600' }}>
           {formatTime(stats.elapsedTime)}
@@ -182,7 +182,7 @@ export function PerformanceMetricsPanel({
           color: '#bbbbbb',
           textAlign: 'center'
         }}>
-          平均 RSRQ: {formatNumber(stats.averageRSRQ, 1)} dB
+          Avg RSRQ: {formatNumber(stats.averageRSRQ, 1)} dB
         </div>
       )}
     </div>

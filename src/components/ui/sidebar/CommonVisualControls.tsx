@@ -41,7 +41,7 @@ export function CommonVisualControls({
           fontWeight: '600',
           letterSpacing: '0.5px'
         }}>
-          🎨 視覺設定（通用）
+          🎨 Visual Settings
         </div>
       </div>
 
@@ -59,7 +59,7 @@ export function CommonVisualControls({
           fontWeight: '500',
           marginBottom: '12px'
         }}>
-          換手動畫速度
+          Handover Animation Speed
         </div>
         <div style={{
           display: 'flex',
@@ -97,7 +97,7 @@ export function CommonVisualControls({
                 }
               }}
             >
-              {speed === 'fast' ? '⚡ 快速' : speed === 'normal' ? '🎯 正常' : '🐢 慢速'}
+              {speed === 'fast' ? '⚡ Fast' : speed === 'normal' ? '🎯 Normal' : '🐢 Slow'}
             </button>
           ))}
         </div>
@@ -107,21 +107,21 @@ export function CommonVisualControls({
           marginTop: '10px',
           paddingLeft: '4px'
         }}>
-          └─ 影響：換手階段過渡的速度（不影響決策邏輯）
+          └─ Impact: Speed of phase transitions (logic unaffected)
         </div>
       </div>
 
       {/* 候選衛星數量 */}
       <ParameterSlider
-        label="顯示候選數量"
+        label="Show Candidates"
         value={candidateCount}
         min={3}
         max={10}
         step={1}
-        unit="顆"
+        unit="sats"
         onChange={onCandidateCountChange}
-        tooltip="準備階段顯示的候選衛星數量（僅影響視覺顯示，不影響換手決策）"
-        impact="畫面顯示更多/更少候選連線"
+        tooltip="Number of candidates shown in preparing phase (visual only)"
+        impact="Show more/less candidate links"
         color="#0088ff"
       />
 
@@ -134,7 +134,7 @@ export function CommonVisualControls({
         color: '#aaccff',
         lineHeight: '1.5'
       }}>
-        💡 <strong>提示</strong>：這些設定對所有換手方法都有效，僅影響視覺呈現，不改變實際換手決策邏輯
+        💡 <strong>Hint</strong>: Settings apply to all methods, visual only.
       </div>
     </div>
   );

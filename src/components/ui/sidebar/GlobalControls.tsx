@@ -53,7 +53,7 @@ export function GlobalControls({
           fontWeight: '600',
           letterSpacing: '0.5px'
         }}>
-          ⚙️ 全局控制
+          ⚙️ Global Controls
         </div>
       </div>
 
@@ -71,7 +71,7 @@ export function GlobalControls({
           fontWeight: '500',
           marginBottom: '12px'
         }}>
-          ⏱️ 模擬時間速度
+          ⏱️ Simulation Speed
         </div>
         <div style={{
           display: 'grid',
@@ -124,7 +124,7 @@ export function GlobalControls({
           marginTop: '10px',
           paddingLeft: '4px'
         }}>
-          └─ 控制衛星軌道運動和換手決策的時間流速
+          └─ Controls time flow of satellite motion and handover logic
         </div>
       </div>
 
@@ -142,7 +142,7 @@ export function GlobalControls({
           fontWeight: '500',
           marginBottom: '12px'
         }}>
-          🎬 換手動畫速度
+          🎬 Handover Animation Speed
         </div>
         <div style={{
           display: 'flex',
@@ -180,7 +180,7 @@ export function GlobalControls({
                 }
               }}
             >
-              {speed === 'fast' ? '⚡ 快速' : speed === 'normal' ? '🎯 正常' : '🐢 慢速'}
+              {speed === 'fast' ? '⚡ Fast' : speed === 'normal' ? '🎯 Normal' : '🐢 Slow'}
             </button>
           ))}
         </div>
@@ -190,21 +190,21 @@ export function GlobalControls({
           marginTop: '10px',
           paddingLeft: '4px'
         }}>
-          └─ 控制換手階段過渡的視覺動畫速度
+          └─ Controls visual speed of phase transitions
         </div>
       </div>
 
       {/* 候選衛星數量 */}
       <ParameterSlider
-        label="顯示候選數量"
+        label="Show Candidates"
         value={candidateCount}
         min={3}
         max={10}
         step={1}
-        unit="顆"
+        unit="sats"
         onChange={onCandidateCountChange}
-        tooltip="準備階段顯示的候選衛星數量（僅影響視覺顯示）"
-        impact="畫面顯示更多/更少候選連線"
+        tooltip="Number of candidates shown in preparing phase (visual only)"
+        impact="Show more/less candidate links"
         color="#ff8800"
       />
 
@@ -218,7 +218,7 @@ export function GlobalControls({
         lineHeight: '1.5',
         marginTop: '12px'
       }}>
-        💡 <strong>提示</strong>：這些設定對所有換手方法都有效
+        💡 <strong>Hint</strong>: Settings apply to all methods
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ interface A4EventPanelProps {
 
 // 格式化衛星 ID：添加星座前綴
 const formatSatelliteId = (satId: string | null, constellation: string = 'starlink'): string => {
-  if (!satId) return '無連接';
+  if (!satId) return 'No Connection';
 
   const match = satId.match(/^(?:sat-)?(\d+)$/);
   if (!match) return satId;
@@ -69,7 +69,7 @@ export function A4EventPanel({ stats, constellation }: A4EventPanelProps) {
             letterSpacing: '0.5px',
             textAlign: 'center'
           }}>
-            A4 事件監測
+            A4 Event Monitor
           </div>
         </div>
 
@@ -110,7 +110,7 @@ export function A4EventPanel({ stats, constellation }: A4EventPanelProps) {
                 fontWeight: '600',
                 letterSpacing: '0.5px'
               }}>
-                {a4Event.active ? 'A4 換手事件進行中' : 'A4 事件監測中'}
+                {a4Event.active ? 'A4 Handover Event In Progress' : 'A4 Event Monitoring'}
               </div>
             </div>
 
@@ -122,8 +122,8 @@ export function A4EventPanel({ stats, constellation }: A4EventPanelProps) {
               lineHeight: '1.6'
             }}>
               {a4Event.active
-                ? '3GPP A4 事件：鄰居衛星 RSRP 超過絕對閾值，正在評估是否換手（基於論文）'
-                : '3GPP A4 事件：持續監測鄰居衛星 RSRP，超過閾值時觸發換手評估'
+                ? '3GPP A4 Event: Neighbor RSRP exceeded threshold. Evaluating handover (based on paper).'
+                : '3GPP A4 Event: Monitoring neighbor RSRP. Trigger handover evaluation if threshold exceeded.'
               }
             </div>
 
@@ -142,7 +142,7 @@ export function A4EventPanel({ stats, constellation }: A4EventPanelProps) {
                 marginBottom: '12px'
               }}>
                 <span style={{ fontSize: '13px', color: '#88ccff', fontWeight: '600' }}>
-                  A4 絕對閾值
+                  A4 Absolute Threshold
                 </span>
                 <span style={{ fontSize: '16px', color: '#00ddff', fontWeight: '600' }}>
                   {a4Event.threshold?.toFixed(1)} dBm
@@ -158,7 +158,7 @@ export function A4EventPanel({ stats, constellation }: A4EventPanelProps) {
                     marginBottom: '10px',
                     fontWeight: '600'
                   }}>
-                    超過閾值的候選衛星 ({a4Event.candidatesAboveThreshold.length} 顆)
+                    Candidates above threshold ({a4Event.candidatesAboveThreshold.length} sats)
                   </div>
                   <div style={{
                     display: 'flex',
@@ -217,7 +217,7 @@ export function A4EventPanel({ stats, constellation }: A4EventPanelProps) {
                   textAlign: 'center',
                   padding: '12px'
                 }}>
-                  暫無候選衛星超過閾值
+                  No candidates above threshold
                 </div>
               )}
             </div>
@@ -270,7 +270,7 @@ export function A4EventPanel({ stats, constellation }: A4EventPanelProps) {
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}>
-                <span style={{ color: '#5599cc', fontWeight: '600' }}>最佳候選</span>
+                <span style={{ color: '#5599cc', fontWeight: '600' }}>Best Candidate</span>
                 <span style={{ color: '#00ddff', fontWeight: '600' }}>
                   {formatSatelliteId(a4Event.targetSatelliteId, constellation)}
                 </span>
@@ -291,7 +291,7 @@ export function A4EventPanel({ stats, constellation }: A4EventPanelProps) {
               color: '#8899aa',
               lineHeight: '1.6'
             }}>
-              <div style={{ fontWeight: '600', marginBottom: '4px' }}>📖 參考論文</div>
+              <div style={{ fontWeight: '600', marginBottom: '4px' }}>📖 Reference Paper</div>
               Yu et al. (2022) - Performance Evaluation of Handover using A4 Event in LEO Satellites Network
             </div>
           </div>

@@ -15,7 +15,7 @@ import { NTPU_CONFIG } from '@/config/ntpu.config';
 import Starfield from '../ui/Starfield';
 import * as THREE from 'three';
 
-// 3D 場景中的載入提示
+// Loading indicator in 3D scene
 function Loader() {
   return (
     <Html center>
@@ -33,7 +33,7 @@ function Loader() {
 }
 
 export function MainScene() {
-  const [showDebug] = useState(false); // 設為 true 可顯示調試網格
+  const [showDebug] = useState(false); // Set to true to show debug grid
   const [constellation, setConstellation] = useState<ConstellationType>('starlink');
   const [handoverMethod, setHandoverMethod] = useState<HandoverMethodType>('rsrp');
   const [handoverStats, setHandoverStats] = useState<HandoverStats>({
@@ -49,26 +49,26 @@ export function MainScene() {
   const [currentSatelliteId, setCurrentSatelliteId] = useState<string | null>(null);
   const [currentPhase, setCurrentPhase] = useState<string>('stable');
 
-  // 全局控制參數
+  // Global control parameters
   const [timeSpeed, setTimeSpeed] = useState<number>(3);
   const [animationSpeed, setAnimationSpeed] = useState<'fast' | 'normal' | 'slow'>('normal');
   const [candidateCount, setCandidateCount] = useState<number>(6);
 
-  // Geometric 方法參數
+  // Geometric method parameters
   const [geometricConfig, setGeometricConfig] = useState<GeometricConfig>({
     elevationWeight: 0.7,
     triggerElevation: 45,
     handoverCooldown: 5
   });
 
-  // RSRP 方法參數
+  // RSRP method parameters
   const [rsrpConfig, setRsrpConfig] = useState<RSRPHandoverConfig>({
     a4Threshold: -100,
     timeToTrigger: 10,
     handoverCooldown: 12
   });
 
-  // 統計更新回調
+  // Stats update callback
   const handleStatsUpdate = (stats: HandoverStats, satelliteId: string | null, phase: string) => {
     setHandoverStats(stats);
     setCurrentSatelliteId(satelliteId);
@@ -87,7 +87,7 @@ export function MainScene() {
     >
       <Starfield starCount={180} />
 
-      {/* 左側監控側邊欄 */}
+      {/* Left monitoring sidebar */}
       <Sidebar
         currentConstellation={constellation}
         onConstellationChange={setConstellation}
@@ -104,7 +104,7 @@ export function MainScene() {
         onCandidateCountChange={setCandidateCount}
       />
 
-      {/* 右側決策詳情面板 */}
+      {/* Right decision details panel */}
       <RightPanel
         currentMethod={handoverMethod}
         stats={handoverStats}
@@ -114,7 +114,7 @@ export function MainScene() {
         onRsrpConfigChange={setRsrpConfig}
       />
 
-      {/* 換手連線圖例（只在換手階段顯示） */}
+      {/* Handover legend (shown only during handover) */}
       <HandoverLegend
         phase={currentPhase}
         show={currentPhase !== 'stable'}
@@ -131,7 +131,7 @@ export function MainScene() {
           antialias: true,
         }}
       >
-        {/* 相機 */}
+        {/* Camera */}
         <PerspectiveCamera
           makeDefault
           position={NTPU_CONFIG.camera.initialPosition.toArray()}
@@ -140,7 +140,7 @@ export function MainScene() {
           far={NTPU_CONFIG.camera.far}
         />
 
-        {/* 軌道控制 */}
+        {/* Orbit controls */}
         <OrbitControls
           enableDamping
           dampingFactor={0.05}
@@ -149,7 +149,7 @@ export function MainScene() {
           maxPolarAngle={Math.PI / 2}
         />
 
-        {/* 燈光 - 主光源位於正上方中央 */}
+        {/* Lights - Main light at top center */}
         <hemisphereLight args={[0xffffff, 0x444444, 1.0]} />
         <ambientLight intensity={0.2} />
         <directionalLight
@@ -168,28 +168,28 @@ export function MainScene() {
           shadow-radius={8}
         />
 
-        {/* 場景模型 */}
+        {/* Scene model */}
         <Suspense fallback={<Loader />}>
           <NTPUScene />
         </Suspense>
 
-        {/* UAV 模型 */}
+        {/* UAV model */}
         <Suspense fallback={null}>
           <UAV position={[0, 10, 0]} scale={10} />
         </Suspense>
 
-        {/* 衛星系統 */}
+        {/* Satellite system */}
         <Suspense fallback={null}>
           <Satellites
             dataUrl={`/data/satellite-timeseries-${constellation}.json`}
             timeSpeed={timeSpeed}
             handoverMethod={handoverMethod}
             onStatsUpdate={handleStatsUpdate}
-            key={`${constellation}-${handoverMethod}`} // 強制重新載入當星座或換手方法改變時
+            key={`${constellation}-${handoverMethod}`} // Force reload when constellation or method changes
           />
         </Suspense>
 
-        {/* 網格輔助線（僅調試時顯示） */}
+        {/* Grid helpers (debug only) */}
         {showDebug && (
           <>
             <gridHelper args={[1000, 50, '#888888', '#444444']} />

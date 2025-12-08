@@ -318,7 +318,7 @@ export class RSRPHandoverManager {
       const target = metrics.find(m => m.satelliteId === targetId);
       const current = metrics.find(m => m.satelliteId === this.currentState.currentSatelliteId);
 
-      // console.log(`🎯 選擇目標: ${targetId} (RSRP=${target?.rsrp.toFixed(1)} dBm vs 當前=${current?.rsrp.toFixed(1)} dBm)`);
+      // console.log(`🎯 Select target: ${targetId} (RSRP=${target?.rsrp.toFixed(1)} dBm vs Current=${current?.rsrp.toFixed(1)} dBm)`);
     }
 
     // 目標訊號緩慢開始增強
@@ -399,7 +399,7 @@ export class RSRPHandoverManager {
       .map(m => m.satelliteId);
 
     this.currentState.candidateSatelliteIds = candidates;
-    // console.log(`🔄 進入換手準備階段，候選衛星(${candidates.length}): ${candidates.join(', ')}`);
+    // console.log(`🔄 Enter preparing phase, candidates(${candidates.length}): ${candidates.join(', ')}`);
   }
 
   private enterSelectingPhase(metrics: SatelliteMetrics[], currentTime: number) {
@@ -422,7 +422,7 @@ export class RSRPHandoverManager {
     this.currentState.phase = 'switching';
     this.phaseStartTime = currentTime;
     this.currentState.progress = 0;
-    // console.log(`🔀 開始切換連接`);
+    // console.log(`🔀 Start switching connection`);
   }
 
   private enterCompletingPhase(currentTime: number) {
@@ -432,7 +432,7 @@ export class RSRPHandoverManager {
   }
 
   private completeHandover() {
-    // console.log(`✅ 換手完成: ${this.currentState.currentSatelliteId} → ${this.currentState.targetSatelliteId}`);
+    // console.log(`✅ Handover complete: ${this.currentState.currentSatelliteId} → ${this.currentState.targetSatelliteId}`);
 
     this.currentState.currentSatelliteId = this.currentState.targetSatelliteId;
     this.currentState.targetSatelliteId = null;

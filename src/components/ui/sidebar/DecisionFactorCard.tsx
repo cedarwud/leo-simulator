@@ -53,7 +53,7 @@ export function DecisionFactorCard({
           borderRadius: '4px',
           border: `1px solid ${color}60`
         }}>
-          ⭐ {weightPercentage.toFixed(0)}% 權重
+          ⭐ {weightPercentage.toFixed(0)}% Weight
         </div>
       </div>
 

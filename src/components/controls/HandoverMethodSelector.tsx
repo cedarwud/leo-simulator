@@ -10,7 +10,7 @@ export function HandoverMethodSelector({
   currentMethod,
   onMethodChange
 }: HandoverMethodSelectorProps) {
-  const methods: HandoverMethodType[] = ['rsrp', 'geometric']; // 'dqn' 需要模型
+  const methods: HandoverMethodType[] = ['rsrp', 'geometric']; // 'dqn' requires model
 
   return (
     <div style={{
@@ -35,7 +35,7 @@ export function HandoverMethodSelector({
         marginBottom: '4px',
         letterSpacing: '0.5px'
       }}>
-        換手方法
+        Handover Method
       </div>
 
       {methods.map((methodId) => {
@@ -119,10 +119,10 @@ export function HandoverMethodSelector({
         lineHeight: '1.4'
       }}>
         <div style={{ marginBottom: '4px' }}>
-          <span style={{ color: '#bbbbbb' }}>學術對比研究</span>
+          <span style={{ color: '#bbbbbb' }}>Academic Comparative Study</span>
         </div>
         <div>
-          不同換手策略的性能評估與對比
+          Performance evaluation and comparison of different handover strategies
         </div>
       </div>
     </div>

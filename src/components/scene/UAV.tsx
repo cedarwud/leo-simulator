@@ -13,11 +13,11 @@ export function UAV({ position, scale = 10 }: UAVProps) {
   const groupRef = useRef<THREE.Group>(null);
   const { scene } = useGLTF('/models/uav.glb');
 
-  // 使用 useMemo clone 場景 (使用 SkeletonUtils 處理骨骼動畫)
+  // Clone scene using useMemo (SkeletonUtils for skeletal animation)
   const clonedScene = useMemo(() => {
     const cloned = SkeletonUtils.clone(scene);
 
-    // 只設置陰影，不修改材質
+    // Set shadows only, do not modify materials
     cloned.traverse((obj: THREE.Object3D) => {
       if ((obj as THREE.Mesh).isMesh) {
         const mesh = obj as THREE.Mesh;
@@ -43,5 +43,5 @@ export function UAV({ position, scale = 10 }: UAVProps) {
   );
 }
 
-// 預載入模型
+// Preload model
 useGLTF.preload('/models/uav.glb');

@@ -50,7 +50,7 @@ export function A4EventMonitor({
           color: '#ffffff',
           fontWeight: '600'
         }}>
-          🚦 A4 事件條件
+          🚦 A4 Event Condition
         </div>
         <div style={{
           fontSize: '13px',
@@ -65,7 +65,7 @@ export function A4EventMonitor({
             : '1px solid rgba(255, 255, 255, 0.2)',
           color: conditionMet ? '#00ff88' : '#cccccc'
         }}>
-          {conditionMet ? '✅ 符合' : '⏸️ 待機'}
+          {conditionMet ? '✅ Met' : '⏸️ Idle'}
         </div>
       </div>
 
@@ -115,9 +115,9 @@ export function A4EventMonitor({
           display: 'flex',
           justifyContent: 'space-between'
         }}>
-          <span>鄰居 RSRP</span>
-          <span>閾值</span>
-          <span>結果</span>
+          <span>Neighbor RSRP</span>
+          <span>Threshold</span>
+          <span>Result</span>
         </div>
       </div>
 
@@ -140,7 +140,7 @@ export function A4EventMonitor({
               color: '#ffffff',
               fontWeight: '500'
             }}>
-              ⏱️ TTT 倒數計時
+              ⏱️ TTT Countdown
             </div>
             <div style={{
               fontSize: '20px',
@@ -220,14 +220,14 @@ export function A4EventMonitor({
               color: '#00ff88',
               fontWeight: '600'
             }}>
-              A4 事件已觸發
+              A4 Event Triggered
             </div>
             <div style={{
               fontSize: '13px',
               color: '#999999',
               marginTop: '4px'
             }}>
-              TTT 計時完成，準備換手
+              TTT completed, preparing handover
             </div>
           </div>
         </div>
@@ -243,7 +243,7 @@ export function A4EventMonitor({
           color: '#999999',
           textAlign: 'center'
         }}>
-          ⏸️ 當前信號穩定，無需換手
+          ⏸️ Signal stable, no handover needed
         </div>
       )}
     </div>
