@@ -158,7 +158,7 @@ export class RSRPHandoverManager {
         satelliteId: m.satelliteId,
         rsrp: m.rsrp!
       }))
-      .sort((a, b) => b.rsrp - a.rsrp); // 按 RSRP 排序，最高的在前
+      .sort((a, b) => (b.rsrp ?? -Infinity) - (a.rsrp ?? -Infinity)); // 按 RSRP 排序，最高的在前
 
     // 檢查是否可以啟動事件：有候選衛星且冷卻時間已過
     const canStartEvent = candidatesAboveThreshold.length > 0 &&
@@ -271,7 +271,7 @@ export class RSRPHandoverManager {
     const neighbors = metrics.filter(m => m.satelliteId !== current.satelliteId);
     if (neighbors.length === 0) return null;
 
-    return neighbors.reduce((best, m) => m.rsrp > best.rsrp ? m : best);
+    return neighbors.reduce((best, m) => (m.rsrp ?? -Infinity) > (best.rsrp ?? -Infinity) ? m : best);
   }
 
   /**
@@ -286,7 +286,7 @@ export class RSRPHandoverManager {
     // 更新候選列表（按 RSRP 排序，前 6 名）
     const candidates = metrics
       .filter(m => m.satelliteId !== this.currentState.currentSatelliteId)
-      .sort((a, b) => b.rsrp - a.rsrp)
+      .sort((a, b) => (b.rsrp ?? -Infinity) - (a.rsrp ?? -Infinity))
       .slice(0, 6)
       .map(m => m.satelliteId);
 
@@ -394,7 +394,7 @@ export class RSRPHandoverManager {
 
     const candidates = metrics
       .filter(m => m.satelliteId !== this.currentState.currentSatelliteId)
-      .sort((a, b) => b.rsrp - a.rsrp)
+      .sort((a, b) => (b.rsrp ?? -Infinity) - (a.rsrp ?? -Infinity))
       .slice(0, 6)
       .map(m => m.satelliteId);
 
@@ -447,7 +447,7 @@ export class RSRPHandoverManager {
   }
 
   private initializeConnection(metrics: SatelliteMetrics[], currentTime: number) {
-    const best = metrics.reduce((a, b) => b.rsrp > a.rsrp ? b : a);
+    const best = metrics.reduce((a, b) => (b.rsrp ?? -Infinity) > (a.rsrp ?? -Infinity) ? b : a);
     this.currentState = {
       phase: 'stable',
       currentSatelliteId: best.satelliteId,

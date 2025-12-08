@@ -176,10 +176,11 @@ export class SatelliteOrbitCalculator {
     });
 
     // 處理最後一個窗口（如果軌道末尾仍可見）
-    if (currentWindow) {
-      currentWindow.duration = currentWindow.endIndex - currentWindow.startIndex + 1;
-      currentWindow.durationSeconds = currentWindow.duration * timeStep;
-      windows.push(currentWindow);
+    if (currentWindow !== null) {
+      const finalWindow = currentWindow as VisibleWindow;
+      finalWindow.duration = finalWindow.endIndex - finalWindow.startIndex + 1;
+      finalWindow.durationSeconds = finalWindow.duration * timeStep;
+      windows.push(finalWindow);
     }
 
     return windows;
