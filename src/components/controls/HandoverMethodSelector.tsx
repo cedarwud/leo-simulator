@@ -10,7 +10,7 @@ export function HandoverMethodSelector({
   currentMethod,
   onMethodChange
 }: HandoverMethodSelectorProps) {
-  const methods: HandoverMethodType[] = ['geometric', 'rsrp']; // 'dqn' 需要模型
+  const methods: HandoverMethodType[] = ['rsrp', 'geometric']; // 'dqn' 需要模型
 
   return (
     <div style={{

@@ -74,7 +74,11 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
   const [error, setError] = useState<string | null>(null);
   const elapsedTimeRef = useRef(0);
   const lastLogTimeRef = useRef(-1);
-  const { scene } = useGLTF('/models/sat.glb');
+
+  // 判斷是否為 OneWeb 星座
+  const isOneWeb = dataUrl.toLowerCase().includes('oneweb');
+  const modelPath = isOneWeb ? '/models/sat2.glb' : '/models/sat.glb';
+  const { scene } = useGLTF(modelPath);
 
   // 統計追蹤 - 使用生成的初始值（用戶體驗優化）
   const statsRef = useRef<HandoverStats>(generateInitialStats(handoverMethod));
@@ -299,35 +303,36 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
                 mat.opacity = 1.0; // 可見衛星完全不透明
 
                 // 檢查材質是否支持發光屬性
-                if ('emissive' in mat && 'emissiveIntensity' in mat) {
-                  // 當前連接衛星：綠色發光
-                  if (isCurrentSatellite) {
-                    (mat as any).emissive = new THREE.Color(0x00ff88);
-                    (mat as any).emissiveIntensity = 0.8;
-                  }
-                  // 目標衛星：藍色發光
-                  else if (isTargetSatellite) {
-                    (mat as any).emissive = new THREE.Color(0x0088ff);
-                    (mat as any).emissiveIntensity = 0.6;
-                  }
-                  // 其他可見衛星：輕微發光
-                  else {
-                    (mat as any).emissive = new THREE.Color(0x444444);
-                    (mat as any).emissiveIntensity = 0.2;
-                  }
-                }
+                // if ('emissive' in mat && 'emissiveIntensity' in mat) {
+                //   // 當前連接衛星：綠色發光
+                //   if (isCurrentSatellite) {
+                //     (mat as any).emissive = new THREE.Color(0x00ff88);
+                //     (mat as any).emissiveIntensity = 0.8;
+                //   }
+                //   // 目標衛星：藍色發光
+                //   else if (isTargetSatellite) {
+                //     (mat as any).emissive = new THREE.Color(0x0088ff);
+                //     (mat as any).emissiveIntensity = 0.6;
+                //   }
+                //   // 其他可見衛星：輕微發光
+                //   else {
+                //     (mat as any).emissive = new THREE.Color(0x444444);
+                //     (mat as any).emissiveIntensity = 0.2;
+                //   }
+                // }
               });
             }
           }
         });
 
         // 當前衛星輕微放大
+        const baseScale = isOneWeb ? 60 : 6;
         if (isCurrentSatellite) {
-          mesh.scale.setScalar(7);
+          mesh.scale.setScalar(baseScale * 1.15); // 放大 15%
         } else if (isTargetSatellite) {
-          mesh.scale.setScalar(6.5);
+          mesh.scale.setScalar(baseScale * 1.08); // 放大 8%
         } else {
-          mesh.scale.setScalar(6);
+          mesh.scale.setScalar(baseScale);
         }
       } else {
         // 衛星不可見：完全隱藏
@@ -370,7 +375,7 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
               meshesRef.current.set(id, ref);
             }
           }}
-          scale={6}
+          scale={isOneWeb ? 60 : 6}
         >
           <primitive object={model} />
         </group>
@@ -390,3 +395,4 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
 
 // 預載入模型
 useGLTF.preload('/models/sat.glb');
+useGLTF.preload('/models/sat2.glb');

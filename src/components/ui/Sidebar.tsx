@@ -1,7 +1,27 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { HandoverMethodType, HANDOVER_METHODS, HandoverStats } from '@/types/handover-method';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { GlobalControls } from './sidebar/GlobalControls';
+
+// 混合兩個顏色（與 EnhancedSatelliteLinks 保持一致）
+function blendColors(color1: string, color2: string, ratio: number): string {
+  const c1 = parseInt(color1.substring(1), 16);
+  const c2 = parseInt(color2.substring(1), 16);
+
+  const r1 = (c1 >> 16) & 0xff;
+  const g1 = (c1 >> 8) & 0xff;
+  const b1 = c1 & 0xff;
+
+  const r2 = (c2 >> 16) & 0xff;
+  const g2 = (c2 >> 8) & 0xff;
+  const b2 = c2 & 0xff;
+
+  const r = Math.round(r1 + (r2 - r1) * ratio);
+  const g = Math.round(g1 + (g2 - g1) * ratio);
+  const b = Math.round(b1 + (b2 - b1) * ratio);
+
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
 
 // 側邊欄組件 - 監控與全局控制
 interface SidebarProps {
@@ -43,6 +63,66 @@ export function Sidebar({
   onCandidateCountChange
 }: SidebarProps) {
   const method = HANDOVER_METHODS[currentMethod];
+  const [connectionBorderColor, setConnectionBorderColor] = useState('#00ff88');
+  const animationTimeRef = useRef(0);
+  const requestRef = useRef<number>();
+  const startTimeRef = useRef<number | null>(null);
+
+  // 動畫循環
+  useEffect(() => {
+    const animate = (time: number) => {
+      if (startTimeRef.current === null) {
+        startTimeRef.current = time;
+      }
+      // 轉換為秒
+      const totalSeconds = (time - startTimeRef.current) / 1000;
+      animationTimeRef.current = totalSeconds;
+
+      // 計算顏色邏輯（跟隨 EnhancedSatelliteLinks.tsx 中的 currentLink 邏輯）
+      let color = '#00ff88';
+
+      // 為了取得 progress，我們這裡做一個簡單的模擬
+      const progress = 0.5;
+
+      switch (currentPhase) {
+        case 'stable':
+          color = '#00ff88';
+          break;
+        case 'preparing':
+          // 準備階段：從綠色漸變到橙色，加入緩慢閃爍警告效果 (0.8Hz)
+          const warningFlicker = Math.sin(totalSeconds * 0.8 * Math.PI * 2) * 0.5 + 0.5;
+          color = blendColors('#00ff88', '#ffaa00', 0.5 + warningFlicker * 0.2);
+          break;
+        case 'selecting':
+          // 選擇階段：在 3D 視圖中，主連線 (currentLink) 保持綠色（因為沒有特別定義 selecting case）
+          // 因此這裡也保持綠色，而非變成目標連線的藍色
+          color = '#00ff88';
+          break;
+        case 'establishing':
+          // 建立階段：深橙色
+          color = '#cc8800';
+          break;
+        case 'switching':
+          // 切換階段：灰色
+          color = '#888888';
+          break;
+        case 'completing':
+          // 完成階段：綠色
+          color = '#00ff88';
+          break;
+        default:
+          color = '#00ff88';
+      }
+
+      setConnectionBorderColor(color);
+      requestRef.current = requestAnimationFrame(animate);
+    };
+
+    requestRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [currentPhase]);
 
   const constellations: ConstellationType[] = ['starlink', 'oneweb'];
   const constellationLabels = {
@@ -50,7 +130,7 @@ export function Sidebar({
     oneweb: 'OneWeb'
   };
 
-  const methods: HandoverMethodType[] = ['geometric', 'rsrp', 'dqn'];
+  const methods: HandoverMethodType[] = ['rsrp', 'geometric', 'dqn'];
 
   // 格式化衛星 ID：添加星座前綴
   const formatSatelliteId = (satId: string | null): string => {
@@ -177,6 +257,112 @@ export function Sidebar({
             </div>
           </div>
 
+          {/* 當前連接狀態 */}
+          <div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                backgroundColor: method.color,
+                boxShadow: `0 0 10px ${method.color}`
+              }} />
+              <div style={{
+                color: '#ffffff',
+                fontSize: '16px',
+                fontWeight: '600',
+                letterSpacing: '0.5px'
+              }}>
+                📡 當前連接
+              </div>
+            </div>
+
+            {/* 連接衛星 */}
+            <div style={{
+              padding: '16px',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              borderRadius: '8px',
+              border: `2px solid ${connectionBorderColor}`,
+              borderLeft: `8px solid ${connectionBorderColor}`,
+              marginBottom: '12px'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '12px'
+              }}>
+                <div style={{ fontSize: '14px', color: '#bbbbbb' }}>
+                  衛星 ID
+                </div>
+                <div style={{
+                  fontSize: '18px',
+                  color: method.color,
+                  fontWeight: '600',
+                  fontFamily: 'monospace'
+                }}>
+                  {formatSatelliteId(currentSatelliteId)}
+                </div>
+              </div>
+
+              {/* 換手階段 */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: stats.currentSatelliteElevation !== undefined ? '12px' : '0'
+              }}>
+                <div style={{ fontSize: '14px', color: '#bbbbbb' }}>
+                  階段
+                </div>
+                <div style={{
+                  fontSize: '14px',
+                  color: phaseInfo.color,
+                  fontWeight: '600',
+                  padding: '4px 12px',
+                  backgroundColor: phaseInfo.bgColor,
+                  borderRadius: '4px',
+                  border: `1px solid ${phaseInfo.color}40`
+                }}>
+                  {phaseInfo.text}
+                </div>
+              </div>
+
+              {/* 幾何資訊（Geometric 方法時顯示） */}
+              {stats.currentSatelliteElevation !== undefined && stats.currentSatelliteDistance !== undefined && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '12px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '14px', color: '#bbbbbb', marginBottom: '6px' }}>
+                      仰角
+                    </div>
+                    <div style={{ fontSize: '20px', color: method.color, fontWeight: '600', fontFamily: 'monospace' }}>
+                      {stats.currentSatelliteElevation.toFixed(1)}°
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '14px', color: '#bbbbbb', marginBottom: '6px' }}>
+                      距離
+                    </div>
+                    <div style={{ fontSize: '20px', color: method.color, fontWeight: '600', fontFamily: 'monospace' }}>
+                      {stats.currentSatelliteDistance.toFixed(0)} km
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* 換手方法選擇 */}
           <div>
             <div style={{
@@ -254,114 +440,6 @@ export function Sidebar({
             onAnimationSpeedChange={onAnimationSpeedChange}
             onCandidateCountChange={onCandidateCountChange}
           />
-
-          {/* 分隔線 */}
-          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
-
-          {/* 當前連接狀態 */}
-          <div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              marginBottom: '16px'
-            }}>
-              <div style={{
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                backgroundColor: method.color,
-                boxShadow: `0 0 10px ${method.color}`
-              }} />
-              <div style={{
-                color: '#ffffff',
-                fontSize: '16px',
-                fontWeight: '600',
-                letterSpacing: '0.5px'
-              }}>
-                📡 當前連接
-              </div>
-            </div>
-
-            {/* 連接衛星 */}
-            <div style={{
-              padding: '16px',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              marginBottom: '12px'
-            }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '12px'
-              }}>
-                <div style={{ fontSize: '14px', color: '#bbbbbb' }}>
-                  衛星 ID
-                </div>
-                <div style={{
-                  fontSize: '18px',
-                  color: method.color,
-                  fontWeight: '600',
-                  fontFamily: 'monospace'
-                }}>
-                  {formatSatelliteId(currentSatelliteId)}
-                </div>
-              </div>
-
-              {/* 換手階段 */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: stats.currentSatelliteElevation !== undefined ? '12px' : '0'
-              }}>
-                <div style={{ fontSize: '14px', color: '#bbbbbb' }}>
-                  階段
-                </div>
-                <div style={{
-                  fontSize: '14px',
-                  color: phaseInfo.color,
-                  fontWeight: '600',
-                  padding: '4px 12px',
-                  backgroundColor: phaseInfo.bgColor,
-                  borderRadius: '4px',
-                  border: `1px solid ${phaseInfo.color}40`
-                }}>
-                  {phaseInfo.text}
-                </div>
-              </div>
-
-              {/* 幾何資訊（Geometric 方法時顯示） */}
-              {stats.currentSatelliteElevation !== undefined && stats.currentSatelliteDistance !== undefined && (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '12px',
-                  paddingTop: '12px',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div>
-                    <div style={{ fontSize: '14px', color: '#bbbbbb', marginBottom: '6px' }}>
-                      仰角
-                    </div>
-                    <div style={{ fontSize: '20px', color: method.color, fontWeight: '600', fontFamily: 'monospace' }}>
-                      {stats.currentSatelliteElevation.toFixed(1)}°
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '14px', color: '#bbbbbb', marginBottom: '6px' }}>
-                      距離
-                    </div>
-                    <div style={{ fontSize: '20px', color: method.color, fontWeight: '600', fontFamily: 'monospace' }}>
-                      {stats.currentSatelliteDistance.toFixed(0)} km
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* 分隔線 */}
           <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />

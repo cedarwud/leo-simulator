@@ -35,7 +35,7 @@ export function ControlSidebar({
     { value: 'oneweb' as ConstellationType, label: 'OneWeb', count: 26, visible: '3-5' }
   ];
 
-  const methods: HandoverMethodType[] = ['geometric', 'rsrp'];
+  const methods: HandoverMethodType[] = ['rsrp', 'geometric'];
 
   // 格式化函數
   const formatNumber = (value: number | null, decimals: number = 1): string => {
