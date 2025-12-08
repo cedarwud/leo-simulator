@@ -4,10 +4,14 @@
   "description": "LEO Satellite Handover Visualization - NTPU 3D Scene",
   "type": "module",
   "scripts": {
+    "predev": "npm run clean:ts-output",
     "dev": "vite",
-    "build": "tsc && vite build",
+    "prebuild": "npm run clean:ts-output",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "clean:ts-output": "node ./scripts/clean-ts-output.js"
   },
   "keywords": [
     "satellite",
