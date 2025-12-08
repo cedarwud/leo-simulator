@@ -7,6 +7,9 @@ import { Satellites } from '../satellite/Satellites';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { Sidebar } from '../ui/Sidebar';
 import { RightPanel } from '../ui/RightPanel';
+import { HandoverLegend } from '../ui/HandoverLegend';
+import { GeometricConfig } from '../ui/sidebar/GeometricMethodPanel';
+import { RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
 import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
 import Starfield from '../ui/Starfield';
@@ -32,7 +35,7 @@ function Loader() {
 export function MainScene() {
   const [showDebug] = useState(false); // 設為 true 可顯示調試網格
   const [constellation, setConstellation] = useState<ConstellationType>('starlink');
-  const [handoverMethod, setHandoverMethod] = useState<HandoverMethodType>('geometric');
+  const [handoverMethod, setHandoverMethod] = useState<HandoverMethodType>('rsrp');
   const [handoverStats, setHandoverStats] = useState<HandoverStats>({
     totalHandovers: 0,
     pingPongEvents: 0,
@@ -50,6 +53,20 @@ export function MainScene() {
   const [timeSpeed, setTimeSpeed] = useState<number>(3);
   const [animationSpeed, setAnimationSpeed] = useState<'fast' | 'normal' | 'slow'>('normal');
   const [candidateCount, setCandidateCount] = useState<number>(6);
+
+  // Geometric 方法參數
+  const [geometricConfig, setGeometricConfig] = useState<GeometricConfig>({
+    elevationWeight: 0.7,
+    triggerElevation: 45,
+    handoverCooldown: 5
+  });
+
+  // RSRP 方法參數
+  const [rsrpConfig, setRsrpConfig] = useState<RSRPHandoverConfig>({
+    a4Threshold: -100,
+    timeToTrigger: 10,
+    handoverCooldown: 12
+  });
 
   // 統計更新回調
   const handleStatsUpdate = (stats: HandoverStats, satelliteId: string | null, phase: string) => {
@@ -92,6 +109,15 @@ export function MainScene() {
         currentMethod={handoverMethod}
         stats={handoverStats}
         constellation={constellation}
+        currentPhase={currentPhase}
+        onGeometricConfigChange={setGeometricConfig}
+        onRsrpConfigChange={setRsrpConfig}
+      />
+
+      {/* 換手連線圖例（只在換手階段顯示） */}
+      <HandoverLegend
+        phase={currentPhase}
+        show={currentPhase !== 'stable'}
       />
 
       <Canvas

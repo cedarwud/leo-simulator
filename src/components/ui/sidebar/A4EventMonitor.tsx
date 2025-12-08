@@ -2,7 +2,6 @@ import React from 'react';
 
 interface A4EventMonitorProps {
   neighborRSRP: number;
-  offset: number;
   threshold: number;
   tttProgress: number; // 0-1
   tttElapsed: number;
@@ -13,7 +12,6 @@ interface A4EventMonitorProps {
 
 export function A4EventMonitor({
   neighborRSRP,
-  offset,
   threshold,
   tttProgress,
   tttElapsed,
@@ -21,7 +19,7 @@ export function A4EventMonitor({
   isTriggered,
   isCounting
 }: A4EventMonitorProps) {
-  const conditionMet = (neighborRSRP + offset) > threshold;
+  const conditionMet = neighborRSRP > threshold;
   const progressPercentage = tttProgress * 100;
 
   return (
@@ -85,7 +83,7 @@ export function A4EventMonitor({
           color: '#999999',
           marginBottom: '8px'
         }}>
-          Mn + Offset {'>'} Threshold
+          Mn {'>'} Threshold
         </div>
         <div style={{
           fontSize: '18px',
@@ -97,10 +95,6 @@ export function A4EventMonitor({
         }}>
           <span style={{ color: '#0088ff' }}>
             {neighborRSRP.toFixed(1)}
-          </span>
-          <span style={{ color: '#999999' }}>+</span>
-          <span style={{ color: '#ffaa00' }}>
-            {offset.toFixed(0)}
           </span>
           <span style={{ color: '#999999' }}>{'>'}</span>
           <span style={{ color: '#ff6600' }}>
@@ -122,7 +116,6 @@ export function A4EventMonitor({
           justifyContent: 'space-between'
         }}>
           <span>鄰居 RSRP</span>
-          <span>偏移</span>
           <span>閾值</span>
           <span>結果</span>
         </div>

@@ -1,7 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-// @ts-expect-error SkeletonUtils has no TypeScript definitions
+// @ts-ignore - SkeletonUtils has no TypeScript definitions
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 interface UAVProps {

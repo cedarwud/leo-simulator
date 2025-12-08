@@ -224,7 +224,6 @@ export function Sidebar({
                       opacity: isDisabled ? 0.5 : 1
                     }}
                   >
-                    <span style={{ fontSize: '18px' }}>{methodInfo.icon}</span>
                     <div>
                       <div style={{ fontWeight: '600', marginBottom: '4px' }}>
                         {methodInfo.name}

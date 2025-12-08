@@ -42,13 +42,6 @@ const generateInitialStats = (method: HandoverMethodType): HandoverStats => {
       pingPongRate = 0.08; // 8% ping-pong 率（A4 事件更穩定）
       break;
 
-    case 'hybrid':
-      // 混合方法：約每 50 秒換一次
-      avgConnectionDuration = 50;
-      totalHandovers = Math.floor(initialElapsedTime / avgConnectionDuration);
-      pingPongRate = 0.12; // 12% ping-pong 率
-      break;
-
     case 'dqn':
       // DQN 方法：預期最優，約每 70 秒換一次（開發中）
       avgConnectionDuration = 70;
@@ -305,20 +298,23 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
                 mat.transparent = true;
                 mat.opacity = 1.0; // 可見衛星完全不透明
 
-                // 當前連接衛星：綠色發光
-                if (isCurrentSatellite) {
-                  mat.emissive = new THREE.Color(0x00ff88);
-                  mat.emissiveIntensity = 0.8;
-                }
-                // 目標衛星：藍色發光
-                else if (isTargetSatellite) {
-                  mat.emissive = new THREE.Color(0x0088ff);
-                  mat.emissiveIntensity = 0.6;
-                }
-                // 其他可見衛星：輕微發光
-                else {
-                  mat.emissive = new THREE.Color(0x444444);
-                  mat.emissiveIntensity = 0.2;
+                // 檢查材質是否支持發光屬性
+                if ('emissive' in mat && 'emissiveIntensity' in mat) {
+                  // 當前連接衛星：綠色發光
+                  if (isCurrentSatellite) {
+                    (mat as any).emissive = new THREE.Color(0x00ff88);
+                    (mat as any).emissiveIntensity = 0.8;
+                  }
+                  // 目標衛星：藍色發光
+                  else if (isTargetSatellite) {
+                    (mat as any).emissive = new THREE.Color(0x0088ff);
+                    (mat as any).emissiveIntensity = 0.6;
+                  }
+                  // 其他可見衛星：輕微發光
+                  else {
+                    (mat as any).emissive = new THREE.Color(0x444444);
+                    (mat as any).emissiveIntensity = 0.2;
+                  }
                 }
               });
             }

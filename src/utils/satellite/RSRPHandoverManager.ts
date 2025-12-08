@@ -16,16 +16,26 @@ import { HandoverState } from '@/types/handover';
 import { SatelliteMetrics } from '@/utils/satellite/EnhancedHandoverManager';
 import { calculatePathLoss, type PathLossBreakdown } from '@/utils/satellite/PathLossCalculator';
 
+export interface RSRPHandoverConfig {
+  a4Threshold: number;
+  timeToTrigger: number;
+  handoverCooldown: number;
+}
+
 export class RSRPHandoverManager {
   private currentState: HandoverState;
   private phaseStartTime: number = 0;
   private lastHandoverTime: number = 0;
 
-  // 3GPP A4 換手參數（基於論文 Section V）
-  private readonly A4_THRESHOLD_DBM = -100;      // A4 絕對閾值 -100 dBm（論文測試值：-100, -101, -102）
+  // 配置參數（可通過 updateConfig 更新）
+  private config: RSRPHandoverConfig = {
+    a4Threshold: -100,
+    timeToTrigger: 10,
+    handoverCooldown: 12
+  };
+
+  // 固定參數
   private readonly A4_OFFSET_DB = 0;             // A4 offset 0 dB（論文 Table II: Off = 0 dB）
-  private readonly TIME_TO_TRIGGER_MS = 10000;   // Time-to-Trigger 10 秒（合理的 TTT 展示時間）
-  private readonly HANDOVER_COOLDOWN = 12;       // 換手冷卻 12 秒（避免過於頻繁的換手）
   private readonly MIN_RSRP_DBM = -120;          // 最小可用 RSRP
 
   // 論文路徑損耗參數（Table II）
@@ -63,11 +73,18 @@ export class RSRPHandoverManager {
         eventType: 'A4',
         targetSatelliteId: null,
         elapsedTime: 0,
-        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
-        threshold: this.A4_THRESHOLD_DBM,
+        requiredTime: this.config.timeToTrigger,
+        threshold: this.config.a4Threshold,
         candidatesAboveThreshold: []
       }
     };
+  }
+
+  /**
+   * 更新配置參數
+   */
+  updateConfig(newConfig: Partial<RSRPHandoverConfig>): void {
+    this.config = { ...this.config, ...newConfig };
   }
 
   /**
@@ -135,7 +152,7 @@ export class RSRPHandoverManager {
       .filter(m =>
         m.satelliteId !== this.currentState.currentSatelliteId &&
         m.rsrp &&
-        (m.rsrp + this.A4_OFFSET_DB) > this.A4_THRESHOLD_DBM
+        (m.rsrp + this.A4_OFFSET_DB) > this.config.a4Threshold
       )
       .map(m => ({
         satelliteId: m.satelliteId,
@@ -145,7 +162,7 @@ export class RSRPHandoverManager {
 
     // 檢查是否可以啟動事件：有候選衛星且冷卻時間已過
     const canStartEvent = candidatesAboveThreshold.length > 0 &&
-                          currentTime - this.lastHandoverTime > this.HANDOVER_COOLDOWN;
+                          currentTime - this.lastHandoverTime > this.config.handoverCooldown;
 
     if (canStartEvent) {
       const bestCandidate = candidatesAboveThreshold[0];
@@ -166,13 +183,13 @@ export class RSRPHandoverManager {
         eventType: 'A4',
         targetSatelliteId: this.eventTargetSatelliteId,
         elapsedTime: elapsedTime,
-        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
-        threshold: this.A4_THRESHOLD_DBM,
+        requiredTime: this.config.timeToTrigger,
+        threshold: this.config.a4Threshold,
         candidatesAboveThreshold: candidatesAboveThreshold
       };
 
       // 檢查是否超過觸發時間（不要求是同一目標，只要持續有候選就可以）
-      if (elapsedTime >= this.TIME_TO_TRIGGER_MS / 1000) {
+      if (elapsedTime >= this.config.timeToTrigger) {
         this.enterPreparingPhase(metrics, currentTime);
         this.eventStartTime = null;
         this.eventTargetSatelliteId = null;
@@ -182,8 +199,8 @@ export class RSRPHandoverManager {
           eventType: 'A4',
           targetSatelliteId: null,
           elapsedTime: 0,
-          requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
-          threshold: this.A4_THRESHOLD_DBM,
+          requiredTime: this.config.timeToTrigger,
+          threshold: this.config.a4Threshold,
           candidatesAboveThreshold: []
         };
       }
@@ -199,8 +216,8 @@ export class RSRPHandoverManager {
         eventType: 'A4',
         targetSatelliteId: null,
         elapsedTime: 0,
-        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
-        threshold: this.A4_THRESHOLD_DBM,
+        requiredTime: this.config.timeToTrigger,
+        threshold: this.config.a4Threshold,
         candidatesAboveThreshold: candidatesAboveThreshold  // 保留候選列表用於顯示
       };
     }
@@ -215,7 +232,7 @@ export class RSRPHandoverManager {
       .filter(m =>
         m.satelliteId !== this.currentState.currentSatelliteId &&
         m.rsrp &&
-        (m.rsrp + this.A4_OFFSET_DB) > this.A4_THRESHOLD_DBM
+        (m.rsrp + this.A4_OFFSET_DB) > this.config.a4Threshold
       )
       .map(m => ({
         satelliteId: m.satelliteId,
@@ -242,7 +259,7 @@ export class RSRPHandoverManager {
         ...this.currentState.a3Event,
         candidatesAboveThreshold: candidatesAboveThreshold,
         bestCandidateId: bestCandidate?.satelliteId || null,
-        threshold: this.A4_THRESHOLD_DBM
+        threshold: this.config.a4Threshold
       };
     }
   }
@@ -446,8 +463,8 @@ export class RSRPHandoverManager {
         eventType: 'A4',
         targetSatelliteId: null,
         elapsedTime: 0,
-        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
-        threshold: this.A4_THRESHOLD_DBM,
+        requiredTime: this.config.timeToTrigger,
+        threshold: this.config.a4Threshold,
         candidatesAboveThreshold: []
       }
     };
@@ -470,8 +487,8 @@ export class RSRPHandoverManager {
         eventType: 'A4',
         targetSatelliteId: null,
         elapsedTime: 0,
-        requiredTime: this.TIME_TO_TRIGGER_MS / 1000,
-        threshold: this.A4_THRESHOLD_DBM,
+        requiredTime: this.config.timeToTrigger,
+        threshold: this.config.a4Threshold,
         candidatesAboveThreshold: []
       }
     };

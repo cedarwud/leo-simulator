@@ -221,7 +221,7 @@ export function EnhancedSatelliteLinks({
         return (
           <Line
             key="current-link"
-            points={currentLink.points}
+            points={currentLink.points as any}
             color={currentLink.color}
             lineWidth={animatedLineWidth}
             dashed={currentLink.dashed}
@@ -245,7 +245,7 @@ export function EnhancedSatelliteLinks({
         return (
           <Line
             key={`candidate-${link.id}`}
-            points={link.points}
+            points={link.points as any}
             color={link.color}
             lineWidth={link.lineWidth}
             dashed={link.dashed}
@@ -261,7 +261,7 @@ export function EnhancedSatelliteLinks({
       {targetLink && (
         <Line
           key="target-link"
-          points={targetLink.points}
+          points={targetLink.points as any}
           color={targetLink.color}
           lineWidth={targetLink.lineWidth}
           dashed={targetLink.dashed}

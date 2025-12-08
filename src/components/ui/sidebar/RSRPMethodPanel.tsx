@@ -1,12 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { HandoverStats } from '@/types/handover-method';
 import { DualSemiCircleGauge } from '../SemiCircleGauge';
 import { A4EventMonitor } from './A4EventMonitor';
 import { CandidateList } from './CandidateList';
+import { ParameterSlider } from './ParameterSlider';
+import { RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
 
 interface RSRPMethodPanelProps {
   stats: HandoverStats;
   constellation?: 'starlink' | 'oneweb';
+  currentPhase?: string;
+  onConfigChange?: (config: RSRPHandoverConfig) => void;
 }
 
 // 格式化衛星 ID：添加星座前綴
@@ -21,19 +25,52 @@ const formatSatelliteId = (satId: string | null, constellation: string = 'starli
   return `${prefix}-${number}`;
 }
 
-export function RSRPMethodPanel({ stats, constellation = 'starlink' }: RSRPMethodPanelProps) {
+export function RSRPMethodPanel({
+  stats,
+  constellation = 'starlink',
+  currentPhase = 'stable',
+  onConfigChange
+}: RSRPMethodPanelProps) {
+  // 本地配置狀態
+  const [localConfig, setLocalConfig] = useState<RSRPHandoverConfig>({
+    a4Threshold: -100,
+    timeToTrigger: 10,
+    handoverCooldown: 12
+  });
+
+  // 參數變更處理
+  const handleConfigChange = (key: keyof RSRPHandoverConfig, value: number) => {
+    const newConfig = { ...localConfig, [key]: value };
+    setLocalConfig(newConfig);
+    onConfigChange?.(newConfig);
+  };
+
   // A4 事件數據
-  const a4Event = stats.a3Event; // 實際上使用的是 A4 事件，變數名稱是歷史遺留
+  const a4Event = stats.a3Event; // 使用 a3Event（歷史欄位名稱，實際是 A4 事件）
   const hasA4Event = a4Event !== undefined;
 
   // 準備候選衛星列表
   // 注意：candidatesAboveThreshold 只包含 satelliteId 和 rsrp
   // elevation 和 distance 需要從其他地方獲取（暫時不顯示）
-  const candidates = a4Event?.candidatesAboveThreshold?.map(candidate => ({
+  let candidates = a4Event?.candidatesAboveThreshold?.map(candidate => ({
     id: candidate.satelliteId,
     rsrp: candidate.rsrp,
     meetsA4: true
   })) || [];
+
+  // 在換手階段，確保目標衛星包含在候選列表中（即使它不在 candidatesAboveThreshold 中）
+  const isActiveHandoverPhase = ['selecting', 'establishing', 'switching', 'completing'].includes(currentPhase);
+  if (isActiveHandoverPhase && a4Event?.targetSatelliteId) {
+    const targetExists = candidates.some(c => c.id === a4Event.targetSatelliteId);
+    if (!targetExists && stats.targetSatelliteRSRP !== undefined) {
+      // 將目標衛星添加到候選列表開頭
+      candidates = [{
+        id: a4Event.targetSatelliteId,
+        rsrp: stats.targetSatelliteRSRP,
+        meetsA4: true
+      }, ...candidates];
+    }
+  }
 
   return (
     <div style={{
@@ -41,6 +78,34 @@ export function RSRPMethodPanel({ stats, constellation = 'starlink' }: RSRPMetho
       flexDirection: 'column',
       gap: '20px'
     }}>
+      {/* A4 事件監測 */}
+      {hasA4Event && (
+        <div>
+          <A4EventMonitor
+            neighborRSRP={-85} // 暫時使用固定值，待後端提供
+            threshold={a4Event.threshold || -100}
+            tttProgress={a4Event.elapsedTime / a4Event.requiredTime}
+            tttElapsed={a4Event.elapsedTime}
+            tttTotal={a4Event.requiredTime}
+            isTriggered={a4Event.active && a4Event.elapsedTime >= a4Event.requiredTime}
+            isCounting={a4Event.active && a4Event.elapsedTime < a4Event.requiredTime}
+          />
+        </div>
+      )}
+
+      {/* 候選衛星列表 */}
+      {candidates.length > 0 && (
+        <CandidateList
+          candidates={candidates}
+          threshold={a4Event?.threshold || -100}
+          maxDisplay={5}
+          constellation={constellation}
+        />
+      )}
+
+      {/* 分隔線 */}
+      <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+
       {/* 信號品質監測 */}
       <div>
         <div style={{
@@ -161,36 +226,6 @@ export function RSRPMethodPanel({ stats, constellation = 'starlink' }: RSRPMetho
         </div>
       </div>
 
-      {/* 分隔線 */}
-      <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
-
-      {/* A4 事件監測 */}
-      {hasA4Event && (
-        <div>
-          <A4EventMonitor
-            neighborRSRP={-85} // 暫時使用固定值，待後端提供
-            offset={0}
-            threshold={a4Event.threshold || -100}
-            tttProgress={a4Event.elapsedTime / a4Event.requiredTime}
-            tttElapsed={a4Event.elapsedTime}
-            tttTotal={a4Event.requiredTime}
-            isTriggered={a4Event.active && a4Event.elapsedTime >= a4Event.requiredTime}
-            isCounting={a4Event.active && a4Event.elapsedTime < a4Event.requiredTime}
-          />
-        </div>
-      )}
-
-      {/* 候選衛星列表 */}
-      {candidates.length > 0 && (
-        <CandidateList
-          candidates={candidates}
-          threshold={a4Event?.threshold || -100}
-          maxDisplay={5}
-          bestCandidateId={a4Event?.bestCandidateId}
-          constellation={constellation}
-        />
-      )}
-
       {/* 最佳候選衛星（當 A4 事件觸發且有目標衛星時顯示） */}
       {hasA4Event && a4Event.active && a4Event.targetSatelliteId && (
         <div style={{
@@ -253,58 +288,94 @@ export function RSRPMethodPanel({ stats, constellation = 'starlink' }: RSRPMetho
         </div>
       )}
 
-      {/* 論文參考 */}
+      {/* 分隔線 */}
+      <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+
+      {/* A4 參數調整區域 */}
       <div style={{
-        marginTop: '20px',
-        padding: '14px',
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        padding: '20px',
+        backgroundColor: 'rgba(0, 136, 255, 0.1)',
         borderRadius: '8px',
-        border: '1px solid rgba(255, 255, 255, 0.1)'
+        border: '2px solid #0088ff'
       }}>
         <div style={{
-          fontSize: '12px',
-          color: '#8899aa',
-          lineHeight: '1.6'
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          marginBottom: '16px'
         }}>
           <div style={{
+            width: '10px',
+            height: '10px',
+            borderRadius: '50%',
+            backgroundColor: '#0088ff',
+            boxShadow: '0 0 10px #0088ff'
+          }} />
+          <div style={{
+            color: '#ffffff',
+            fontSize: '16px',
             fontWeight: '600',
-            marginBottom: '6px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
+            letterSpacing: '0.5px'
           }}>
-            📖 參考論文
-          </div>
-          <div style={{ paddingLeft: '20px' }}>
-            Yu et al. (2022) - Performance Evaluation of Handover using A4 Event in LEO Satellites Network
+            ⚙️ A4 參數調整
           </div>
         </div>
-      </div>
 
-      {/* 可選：A4 參數調整區域 */}
-      {/*
-      <div style={{ marginTop: '20px' }}>
+        {/* A4 閾值 */}
+        <ParameterSlider
+          label="A4 閾值"
+          value={localConfig.a4Threshold}
+          min={-110}
+          max={-90}
+          step={1}
+          unit="dBm"
+          onChange={(value) => handleConfigChange('a4Threshold', value)}
+          tooltip="RSRP 絕對閾值，超過此值的衛星成為候選"
+          impact="數值越低越容易觸發換手"
+          color="#0088ff"
+        />
+
+        {/* Time-to-Trigger */}
+        <ParameterSlider
+          label="Time-to-Trigger"
+          value={localConfig.timeToTrigger}
+          min={5}
+          max={20}
+          step={1}
+          unit="秒"
+          onChange={(value) => handleConfigChange('timeToTrigger', value)}
+          tooltip="事件必須持續的時間才會觸發換手"
+          impact="時間越長越穩定但反應越慢"
+          color="#0088ff"
+        />
+
+        {/* 換手冷卻時間 */}
+        <ParameterSlider
+          label="換手冷卻"
+          value={localConfig.handoverCooldown}
+          min={5}
+          max={20}
+          step={1}
+          unit="秒"
+          onChange={(value) => handleConfigChange('handoverCooldown', value)}
+          tooltip="兩次換手之間的最小間隔時間"
+          impact="避免 ping-pong 效應"
+          color="#0088ff"
+        />
+
         <div style={{
-          color: '#ffffff',
-          fontSize: '16px',
-          fontWeight: '600',
-          marginBottom: '16px',
-          letterSpacing: '0.5px'
+          padding: '12px',
+          backgroundColor: 'rgba(0, 136, 255, 0.1)',
+          borderRadius: '6px',
+          border: '1px solid rgba(0, 136, 255, 0.2)',
+          fontSize: '13px',
+          color: '#77aaff',
+          lineHeight: '1.5',
+          marginTop: '12px'
         }}>
-          ⚙️ A4 參數（可選）
-        </div>
-        <div style={{
-          fontSize: '14px',
-          color: '#999999',
-          padding: '14px',
-          backgroundColor: 'rgba(255, 255, 255, 0.03)',
-          borderRadius: '8px',
-          border: '1px solid rgba(255, 255, 255, 0.1)'
-        }}>
-          A4 參數調整功能開發中
+          💡 <strong>提示</strong>：調整這些參數會立即影響 RSRP 換手行為
         </div>
       </div>
-      */}
     </div>
   );
 }

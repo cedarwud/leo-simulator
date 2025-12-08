@@ -12,43 +12,42 @@ interface CandidateListProps {
   candidates: Candidate[];
   threshold: number;
   maxDisplay?: number;
-  bestCandidateId?: string;
   constellation?: 'starlink' | 'oneweb';
+  targetSatelliteId?: string | null;
+  currentPhase?: string;
+  phaseProgress?: number;
 }
 
-// 格式化衛星 ID：添加星座前綴
 const formatSatelliteId = (satId: string, constellation: string = 'starlink'): string => {
   const match = satId.match(/^(?:sat-)?(\d+)$/);
   if (!match) return satId;
-
   const number = match[1];
   const prefix = constellation === 'starlink' ? 'Starlink' : 'OneWeb';
   return `${prefix}-${number}`;
 }
 
+const getRSRPColor = (rsrp: number): string => {
+  if (rsrp >= -80) return '#00ff88';
+  if (rsrp >= -90) return '#88ff00';
+  if (rsrp >= -100) return '#ffaa00';
+  if (rsrp >= -110) return '#ff6600';
+  return '#ff0000';
+};
+
+const getRSRPLabel = (rsrp: number): string => {
+  if (rsrp >= -80) return '優秀';
+  if (rsrp >= -90) return '良好';
+  if (rsrp >= -100) return '中等';
+  if (rsrp >= -110) return '較差';
+  return '極差';
+};
+
 export function CandidateList({
   candidates,
   threshold,
   maxDisplay = 5,
-  bestCandidateId,
   constellation = 'starlink'
 }: CandidateListProps) {
-  const getRSRPColor = (rsrp: number): string => {
-    if (rsrp >= -80) return '#00ff88';
-    if (rsrp >= -90) return '#88ff00';
-    if (rsrp >= -100) return '#ffaa00';
-    if (rsrp >= -110) return '#ff6600';
-    return '#ff0000';
-  };
-
-  const getRSRPLabel = (rsrp: number): string => {
-    if (rsrp >= -80) return '優秀';
-    if (rsrp >= -90) return '良好';
-    if (rsrp >= -100) return '中等';
-    if (rsrp >= -110) return '較差';
-    return '極差';
-  };
-
   const displayedCandidates = candidates.slice(0, maxDisplay);
   const hasMore = candidates.length > maxDisplay;
 
@@ -89,7 +88,6 @@ export function CandidateList({
       border: '1px solid rgba(0, 136, 255, 0.3)',
       marginBottom: '12px'
     }}>
-      {/* 標題 */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -116,35 +114,24 @@ export function CandidateList({
         </div>
       </div>
 
-      {/* 候選列表 */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
         gap: '8px'
       }}>
-        {displayedCandidates.map((candidate, index) => {
+        {displayedCandidates.map((candidate) => {
           const rsrpColor = getRSRPColor(candidate.rsrp);
           const rsrpLabel = getRSRPLabel(candidate.rsrp);
           const meetsThreshold = candidate.rsrp > threshold;
-          const isBest = bestCandidateId === candidate.id;
 
           return (
             <div
               key={candidate.id}
               style={{
                 padding: '12px',
-                backgroundColor: isBest
-                  ? 'rgba(0, 221, 255, 0.15)'
-                  : meetsThreshold
-                  ? 'rgba(0, 136, 255, 0.1)'
-                  : 'rgba(255, 255, 255, 0.03)',
+                backgroundColor: meetsThreshold ? 'rgba(0, 136, 255, 0.1)' : 'rgba(255, 255, 255, 0.03)',
                 borderRadius: '6px',
-                border: isBest
-                  ? '2px solid #00ddff'
-                  : meetsThreshold
-                  ? `1px solid ${rsrpColor}40`
-                  : '1px solid rgba(255, 255, 255, 0.1)',
-                transition: 'all 0.2s ease'
+                border: meetsThreshold ? `1px solid ${rsrpColor}40` : '1px solid rgba(255, 255, 255, 0.1)'
               }}
             >
               <div style={{
@@ -153,64 +140,27 @@ export function CandidateList({
                 alignItems: 'center',
                 marginBottom: '8px'
               }}>
-                {/* 排名和衛星 ID */}
                 <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
+                  fontSize: '14px',
+                  color: '#ffffff',
+                  fontWeight: '500',
+                  fontFamily: 'monospace'
                 }}>
-                  {isBest ? (
-                    <span style={{ fontSize: '20px' }}>⭐</span>
-                  ) : (
-                    <div style={{
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '50%',
-                      backgroundColor: index === 0
-                        ? 'rgba(255, 215, 0, 0.2)'
-                        : 'rgba(255, 255, 255, 0.1)',
-                      border: index === 0
-                        ? '2px solid #ffd700'
-                        : '1px solid rgba(255, 255, 255, 0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      color: index === 0 ? '#ffd700' : '#cccccc'
-                    }}>
-                      {index + 1}
-                    </div>
-                  )}
-                  <div style={{
-                    fontSize: '14px',
-                    color: isBest ? '#00ddff' : '#ffffff',
-                    fontWeight: isBest ? '600' : '500',
-                    fontFamily: 'monospace'
-                  }}>
-                    {formatSatelliteId(candidate.id, constellation)}
-                  </div>
+                  {formatSatelliteId(candidate.id, constellation)}
                 </div>
-
-                {/* A4 符合標記 */}
                 <div style={{
                   fontSize: '11px',
                   fontWeight: '600',
                   padding: '3px 8px',
                   borderRadius: '4px',
-                  backgroundColor: meetsThreshold
-                    ? 'rgba(0, 255, 136, 0.2)'
-                    : 'rgba(255, 102, 0, 0.2)',
-                  border: meetsThreshold
-                    ? '1px solid #00ff88'
-                    : '1px solid #ff6600',
+                  backgroundColor: meetsThreshold ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 102, 0, 0.2)',
+                  border: meetsThreshold ? '1px solid #00ff88' : '1px solid #ff6600',
                   color: meetsThreshold ? '#00ff88' : '#ff6600'
                 }}>
                   {meetsThreshold ? '✓ A4' : '✗ A4'}
                 </div>
               </div>
 
-              {/* RSRP 顯示 */}
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -236,40 +186,11 @@ export function CandidateList({
                   {rsrpLabel}
                 </div>
               </div>
-
-              {/* 幾何資訊（如果有） */}
-              {(candidate.elevation !== undefined || candidate.distance !== undefined) && (
-                <div style={{
-                  marginTop: '8px',
-                  paddingTop: '8px',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                  display: 'flex',
-                  gap: '12px',
-                  fontSize: '12px',
-                  color: '#999999'
-                }}>
-                  {candidate.elevation !== undefined && (
-                    <div>
-                      仰角: <span style={{ color: '#cccccc', fontWeight: '600' }}>
-                        {candidate.elevation.toFixed(1)}°
-                      </span>
-                    </div>
-                  )}
-                  {candidate.distance !== undefined && (
-                    <div>
-                      距離: <span style={{ color: '#cccccc', fontWeight: '600' }}>
-                        {candidate.distance.toFixed(0)} km
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           );
         })}
       </div>
 
-      {/* 顯示更多提示 */}
       {hasMore && (
         <div style={{
           marginTop: '10px',

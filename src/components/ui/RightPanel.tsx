@@ -3,19 +3,24 @@ import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { GeometricMethodPanel, GeometricConfig } from './sidebar/GeometricMethodPanel';
 import { RSRPMethodPanel } from './sidebar/RSRPMethodPanel';
+import { RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
 
 interface RightPanelProps {
   currentMethod: HandoverMethodType;
   stats: HandoverStats;
   constellation: ConstellationType;
+  currentPhase?: string;
   onGeometricConfigChange?: (config: GeometricConfig) => void;
+  onRsrpConfigChange?: (config: RSRPHandoverConfig) => void;
 }
 
 export function RightPanel({
   currentMethod,
   stats,
   constellation,
-  onGeometricConfigChange
+  currentPhase = 'stable',
+  onGeometricConfigChange,
+  onRsrpConfigChange
 }: RightPanelProps) {
   return (
     <>
@@ -39,7 +44,7 @@ export function RightPanel({
         top: 0,
         right: 0,
         height: '100%',
-        width: '380px',
+        width: '340px',
         backgroundColor: 'rgba(0, 0, 0, 0.9)',
         backdropFilter: 'blur(10px)',
         borderLeft: '1px solid rgba(255, 255, 255, 0.15)',
@@ -87,6 +92,8 @@ export function RightPanel({
             <RSRPMethodPanel
               stats={stats}
               constellation={constellation}
+              currentPhase={currentPhase}
+              onConfigChange={onRsrpConfigChange}
             />
           )}
 

@@ -69,7 +69,7 @@ export function SatelliteLinks({
       {/* 主連線：UAV → 當前衛星（綠色實線）*/}
       {activeLinkPoints && (
         <Line
-          points={activeLinkPoints}
+          points={activeLinkPoints as any}
           color="#00ff88"           // 青綠色（與 ntn-stack satellite link 一致）
           lineWidth={3}             // 較粗的線條
           transparent
@@ -80,7 +80,7 @@ export function SatelliteLinks({
       {/* 換手連線：UAV → 換手目標（黃色虛線）*/}
       {handoverLinkPoints && (
         <Line
-          points={handoverLinkPoints}
+          points={handoverLinkPoints as any}
           color="#ffaa00"           // 橘黃色（警告色）
           lineWidth={2}             // 較細的線條
           dashed                    // 虛線表示換手中
