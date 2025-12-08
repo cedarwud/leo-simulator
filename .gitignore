@@ -1,7 +1,36 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 .vite/
 
-# TypeScript 編譯產生的 .js 文件（應該只使用 .tsx 源文件）
+# Python virtual environment
+leo_env/
+venv/
+*.pyc
+__pycache__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript compiled files
 src/**/*.js
 !src/**/*.config.js
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment variables (if any)
+.env.local
+.env.production
+
+# Note: We DO include public/data/*.json for standalone deployment
