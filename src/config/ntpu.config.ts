@@ -14,7 +14,7 @@ export const NTPU_CONFIG = {
     rotation: [0, 0, 0] as [number, number, number],
   },
   camera: {
-    initialPosition: new Vector3(0, 400, 500),
+    initialPosition: new Vector3(0, 400, 2000), // 將攝影機的 Z 軸位置從 1000 增加到 2000，使其拉遠
     fov: 60,
     near: 0.1,
     far: 10000,
