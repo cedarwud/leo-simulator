@@ -138,7 +138,7 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
     );
 
     // 更新換手狀態
-    const newHandoverState = handoverManager.update(visibleSatellites, elapsedTimeRef.current);
+    const newHandoverState = handoverManager.update(visibleSatellites, elapsedTimeRef.current, timeSpeed);
     setHandoverState(newHandoverState);
     setVisibleSatellitesState(visibleSatellites); // Restored to fix missing links
 
@@ -180,7 +180,7 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
     lastSatelliteIdRef.current = currentSatId;
 
     // 更新統計數據回調
-    if (onStatsUpdate && currentSecond % 1 === 0) { // 每秒更新一次
+    if (onStatsUpdate) { // 每幀更新，保持 UI 與場景同步
       // 獲取當前衛星的幾何資訊
       let currentSatInfo = null;
       let rsrp = statsRef.current.averageRSRP;

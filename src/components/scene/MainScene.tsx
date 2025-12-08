@@ -115,6 +115,7 @@ export function MainScene() {
           stats={handoverStats}
           constellation={constellation}
           currentPhase={currentPhase}
+          currentSatelliteId={currentSatelliteId}
           onGeometricConfigChange={setGeometricConfig}
           onRsrpConfigChange={setRsrpConfig}
         />

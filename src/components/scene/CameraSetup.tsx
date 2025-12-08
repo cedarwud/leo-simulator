@@ -13,14 +13,14 @@ export function CameraSetup({ controlsRef }: CameraSetupProps) {
 
   useEffect(() => {
     if (controlsRef.current) {
-      const initialPos = NTPU_CONFIG.camera.initialPosition;
-      camera.position.set(initialPos.x, initialPos.y, initialPos.z);
+      const { initialPosition, target } = NTPU_CONFIG.camera;
+      camera.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
       
-      // Set OrbitControls target (assuming center of scene is (0,0,0))
-      controlsRef.current.target.set(0, 0, 0); 
+      // Set OrbitControls target from config to shift framing
+      controlsRef.current.target.copy(target);
       controlsRef.current.update(); // Update controls to reflect changes
       
-      camera.lookAt(0, 0, 0); // Ensure camera looks at target
+      camera.lookAt(target); // Ensure camera looks at configured target
     }
   }, [camera, controlsRef]); // Dependencies: run once when camera/gl context is ready
 

@@ -1,26 +1,27 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { HandoverMethodType, HANDOVER_METHODS, HandoverStats } from '@/types/handover-method';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { GlobalControls } from './sidebar/GlobalControls';
 
-// Blend two colors (consistent with EnhancedSatelliteLinks)
-function blendColors(color1: string, color2: string, ratio: number): string {
-  const c1 = parseInt(color1.substring(1), 16);
-  const c2 = parseInt(color2.substring(1), 16);
+// Derive readable text colors based on background brightness
+function getContrastTextColor(hex: string) {
+  const normalized = hex.replace('#', '');
+  const r = parseInt(normalized.substring(0, 2), 16) / 255;
+  const g = parseInt(normalized.substring(2, 4), 16) / 255;
+  const b = parseInt(normalized.substring(4, 6), 16) / 255;
 
-  const r1 = (c1 >> 16) & 0xff;
-  const g1 = (c1 >> 8) & 0xff;
-  const b1 = c1 & 0xff;
+  const toLinear = (c: number) =>
+    c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
 
-  const r2 = (c2 >> 16) & 0xff;
-  const g2 = (c2 >> 8) & 0xff;
-  const b2 = c2 & 0xff;
+  const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+  // Lower threshold so more bright backgrounds use dark text
+  const isLight = luminance > 0.55;
 
-  const r = Math.round(r1 + (r2 - r1) * ratio);
-  const g = Math.round(g1 + (g2 - g1) * ratio);
-  const b = Math.round(b1 + (b2 - b1) * ratio);
-
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+  return {
+    isLight,
+    text: isLight ? '#0b1020' : '#f5f8ff',
+    subtle: isLight ? 'rgba(11, 16, 32, 0.78)' : 'rgba(245, 248, 255, 0.82)'
+  };
 }
 
 // Sidebar component - Monitoring and global controls
@@ -63,65 +64,31 @@ export function Sidebar({
   onCandidateCountChange
 }: SidebarProps) {
   const method = HANDOVER_METHODS[currentMethod];
-  const [connectionBorderColor, setConnectionBorderColor] = useState('#00ff88');
-  const animationTimeRef = useRef(0);
-  const requestRef = useRef<number>(0);
-  const startTimeRef = useRef<number | null>(null);
+  const [connectionBorderColor, setConnectionBorderColor] = useState('#0088ff');
 
-  // Animation loop
+  // Keep connection border color aligned with simplified three-color scheme
   useEffect(() => {
-    const animate = (time: number) => {
-      if (startTimeRef.current === null) {
-        startTimeRef.current = time;
-      }
-      // Convert to seconds
-      const totalSeconds = (time - startTimeRef.current) / 1000;
-      animationTimeRef.current = totalSeconds;
+    let color = '#0088ff'; // current service link
 
-      // Color logic (follows currentLink in EnhancedSatelliteLinks.tsx)
-      let color = '#00ff88';
+    switch (currentPhase) {
+      case 'preparing':
+      case 'selecting':
+        color = '#2d9aff'; // slightly dimmer blue while probing candidates
+        break;
+      case 'establishing':
+        color = '#1f75c6'; // fading current link
+        break;
+      case 'switching':
+        color = '#155a96'; // weakest current link during switch
+        break;
+      case 'completing':
+        color = '#0088ff'; // back to stable tone
+        break;
+      default:
+        color = '#0088ff';
+    }
 
-      // Simple simulation for progress
-      const progress = 0.5;
-
-      switch (currentPhase) {
-        case 'stable':
-          color = '#00ff88';
-          break;
-        case 'preparing':
-          // Preparing: Green to Orange, slow warning flicker (0.8Hz)
-          const warningFlicker = Math.sin(totalSeconds * 0.8 * Math.PI * 2) * 0.5 + 0.5;
-          color = blendColors('#00ff88', '#ffaa00', 0.5 + warningFlicker * 0.2);
-          break;
-        case 'selecting':
-          // Selecting: Main link stays green in 3D (no special case defined)
-          // So keep green here too, not blue like target link
-          color = '#00ff88';
-          break;
-        case 'establishing':
-          // Establishing: Dark Orange
-          color = '#cc8800';
-          break;
-        case 'switching':
-          // Switching: Gray
-          color = '#888888';
-          break;
-        case 'completing':
-          // Completing: Green
-          color = '#00ff88';
-          break;
-        default:
-          color = '#00ff88';
-      }
-
-      setConnectionBorderColor(color);
-      requestRef.current = requestAnimationFrame(animate);
-    };
-
-    requestRef.current = requestAnimationFrame(animate);
-    return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
+    setConnectionBorderColor(color);
   }, [currentPhase]);
 
   const constellations: ConstellationType[] = ['starlink', 'oneweb'];
@@ -131,6 +98,13 @@ export function Sidebar({
   };
 
   const methods: HandoverMethodType[] = ['rsrp', 'geometric', 'dqn'];
+  const {
+    text: cardTextColor,
+    subtle: cardSubtleTextColor,
+    isLight: isCardLight
+  } = getContrastTextColor(connectionBorderColor);
+  const chipBg = isCardLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.12)';
+  const chipBorder = isCardLight ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.16)';
 
   // Format Satellite ID: Add constellation prefix
   const formatSatelliteId = (satId: string | null): string => {
@@ -148,15 +122,15 @@ export function Sidebar({
   const getPhaseLabel = (phase: string): { text: string; color: string; bgColor: string } => {
     switch (phase) {
       case 'stable':
-        return { text: 'Stable', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.15)' };
+        return { text: 'Stable', color: '#0088ff', bgColor: 'rgba(0, 136, 255, 0.15)' };
       case 'preparing':
-        return { text: 'Preparing', color: '#ffaa00', bgColor: 'rgba(255, 170, 0, 0.15)' };
+        return { text: 'Preparing', color: '#0088ff', bgColor: 'rgba(0, 136, 255, 0.12)' };
       case 'selecting':
-        return { text: 'Selecting', color: '#0088ff', bgColor: 'rgba(0, 136, 255, 0.15)' };
+        return { text: 'Selecting', color: '#0088ff', bgColor: 'rgba(0, 136, 255, 0.12)' };
       case 'establishing':
-        return { text: 'Establishing', color: '#00aaff', bgColor: 'rgba(0, 170, 255, 0.15)' };
+        return { text: 'Establishing', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.12)' };
       case 'switching':
-        return { text: 'Switching', color: '#ff8800', bgColor: 'rgba(255, 136, 0, 0.15)' };
+        return { text: 'Switching', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.12)' };
       case 'completing':
         return { text: 'Completing', color: '#00ff88', bgColor: 'rgba(0, 255, 136, 0.15)' };
       default:
@@ -195,7 +169,7 @@ export function Sidebar({
             letterSpacing: '0.5px',
             marginBottom: '8px'
           }}>
-            🛰️ LEO Satellite Handover Simulator
+            🛰️ LEO Satellite Handover
           </div>
           <div style={{
             color: '#999999',
@@ -287,8 +261,8 @@ export function Sidebar({
               padding: '16px',
               backgroundColor: 'rgba(255, 255, 255, 0.05)',
               borderRadius: '8px',
-              border: `2px solid ${connectionBorderColor}`,
-              borderLeft: `8px solid ${connectionBorderColor}`,
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              boxShadow: '0 6px 18px rgba(0, 0, 0, 0.25)',
               marginBottom: '12px'
             }}>
               <div style={{
@@ -297,12 +271,12 @@ export function Sidebar({
                 alignItems: 'center',
                 marginBottom: '12px'
               }}>
-                <div style={{ fontSize: '14px', color: '#bbbbbb' }}>
+                <div style={{ fontSize: '14px', color: cardSubtleTextColor }}>
                   Satellite ID
                 </div>
                 <div style={{
                   fontSize: '18px',
-                  color: method.color,
+                  color: cardTextColor,
                   fontWeight: '600',
                   fontFamily: 'monospace'
                 }}>
@@ -317,18 +291,29 @@ export function Sidebar({
                 alignItems: 'center',
                 marginBottom: stats.currentSatelliteElevation !== undefined ? '12px' : '0'
               }}>
-                <div style={{ fontSize: '14px', color: '#bbbbbb' }}>
+                <div style={{ fontSize: '14px', color: cardSubtleTextColor }}>
                   Phase
                 </div>
                 <div style={{
                   fontSize: '14px',
-                  color: phaseInfo.color,
+                  color: cardTextColor,
                   fontWeight: '600',
                   padding: '4px 12px',
-                  backgroundColor: phaseInfo.bgColor,
+                  backgroundColor: chipBg,
                   borderRadius: '4px',
-                  border: `1px solid ${phaseInfo.color}40`
+                  border: `1px solid ${chipBorder}`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}>
+                  <span style={{
+                    display: 'inline-block',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: phaseInfo.color,
+                    boxShadow: `0 0 8px ${phaseInfo.color}`
+                  }} />
                   {phaseInfo.text}
                 </div>
               </div>
@@ -340,21 +325,21 @@ export function Sidebar({
                   gridTemplateColumns: '1fr 1fr',
                   gap: '12px',
                   paddingTop: '12px',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+                  borderTop: isCardLight ? '1px solid rgba(0, 0, 0, 0.06)' : '1px solid rgba(255, 255, 255, 0.12)'
                 }}>
                   <div>
-                    <div style={{ fontSize: '14px', color: '#bbbbbb', marginBottom: '6px' }}>
+                    <div style={{ fontSize: '14px', color: cardSubtleTextColor, marginBottom: '6px' }}>
                       Elevation
                     </div>
-                    <div style={{ fontSize: '20px', color: method.color, fontWeight: '600', fontFamily: 'monospace' }}>
+                    <div style={{ fontSize: '20px', color: cardTextColor, fontWeight: '600', fontFamily: 'monospace' }}>
                       {stats.currentSatelliteElevation.toFixed(1)}°
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '14px', color: '#bbbbbb', marginBottom: '6px' }}>
+                    <div style={{ fontSize: '14px', color: cardSubtleTextColor, marginBottom: '6px' }}>
                       Distance
                     </div>
-                    <div style={{ fontSize: '20px', color: method.color, fontWeight: '600', fontFamily: 'monospace' }}>
+                    <div style={{ fontSize: '20px', color: cardTextColor, fontWeight: '600', fontFamily: 'monospace' }}>
                       {stats.currentSatelliteDistance.toFixed(0)} km
                     </div>
                   </div>

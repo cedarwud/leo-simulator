@@ -10,6 +10,7 @@ interface RightPanelProps {
   stats: HandoverStats;
   constellation: ConstellationType;
   currentPhase?: string;
+  currentSatelliteId?: string | null;
   onGeometricConfigChange?: (config: GeometricConfig) => void;
   onRsrpConfigChange?: (config: RSRPHandoverConfig) => void;
 }
@@ -19,6 +20,7 @@ export function RightPanel({
   stats,
   constellation,
   currentPhase = 'stable',
+  currentSatelliteId,
   onGeometricConfigChange,
   onRsrpConfigChange
 }: RightPanelProps) {
@@ -44,7 +46,7 @@ export function RightPanel({
         top: 0,
         right: 0,
         height: '100%',
-        width: '340px',
+        width: '360px',
         backgroundColor: 'rgba(0, 0, 0, 0.9)',
         backdropFilter: 'blur(10px)',
         borderLeft: '1px solid rgba(255, 255, 255, 0.15)',
@@ -93,6 +95,7 @@ export function RightPanel({
               stats={stats}
               constellation={constellation}
               currentPhase={currentPhase}
+              currentSatelliteId={currentSatelliteId}
               onConfigChange={onRsrpConfigChange}
             />
           )}

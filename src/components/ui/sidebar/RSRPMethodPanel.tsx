@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 import { HandoverStats } from '@/types/handover-method';
 import { DualSemiCircleGauge } from '../SemiCircleGauge';
 import { A4EventMonitor } from './A4EventMonitor';
-import { CandidateList } from './CandidateList';
+import { CandidateList, CandidateItem, Candidate } from './CandidateList';
 import { ParameterSlider } from './ParameterSlider';
 import { RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
+
+const STATIC_CANDIDATE_COLORS = ['#3b4455', '#4a5568', '#374151', '#2f3947', '#223040'];
 
 interface RSRPMethodPanelProps {
   stats: HandoverStats;
   constellation?: 'starlink' | 'oneweb';
   currentPhase?: string;
-  currentSatelliteId?: string | null; // 新增 prop
+  currentSatelliteId?: string | null;
   onConfigChange?: (config: RSRPHandoverConfig) => void;
 }
 
@@ -50,13 +52,18 @@ export function RSRPMethodPanel({
   // A4 事件數據
   const a4Event = stats.a3Event; // 使用 a3Event（歷史欄位名稱，實際是 A4 事件）
   const hasA4Event = a4Event !== undefined;
+  const visibleCandidateIds = stats.candidateSatellites || [];
 
-  // 準備候選衛星列表 (恢復使用 candidatesAboveThreshold 以確保總是顯示)
-  let candidates = a4Event?.candidatesAboveThreshold?.map(candidate => ({
-    id: candidate.satelliteId,
-    rsrp: candidate.rsrp,
-    meetsA4: true
-  })) || [];
+  // 準備候選衛星列表：只展示畫面上有連線的候選
+  const candidatesFromEvent = a4Event?.candidatesAboveThreshold || [];
+  const candidates: Array<{ id: string; rsrp: number; meetsA4: boolean }> = Array.from(new Set(visibleCandidateIds)).map((id) => {
+    const match = candidatesFromEvent.find(c => c.satelliteId === id);
+    return {
+      id,
+      rsrp: match?.rsrp ?? stats.averageRSRP ?? -95,
+      meetsA4: !!match
+    };
+  });
 
   // 找出有效的目標衛星 ID
   // 1. Completing 階段：換手已完成但動畫仍在進行，此時目標已變成當前衛星
@@ -73,35 +80,37 @@ export function RSRPMethodPanel({
   // 判斷是否處於任何與換手相關的階段 (包括準備階段)
   const isHandoverRelatedPhase = ['preparing', 'selecting', 'establishing', 'switching', 'completing'].includes(currentPhase);
 
-  // 傳遞活躍的候選衛星 ID (僅有效的目標衛星有邊框)
-  const activeCandidateIds = (effectiveTargetId && isHandoverRelatedPhase)
-    ? [effectiveTargetId]
-    : [];
-
-  // 在與換手相關的階段，確保有效的目標衛星包含在候選列表中
-  if (isHandoverRelatedPhase && effectiveTargetId) {
-    const targetExists = candidates.some(c => c.id === effectiveTargetId);
-    if (!targetExists) {
-      // 從 stats 中獲取目標衛星的 RSRP (如果沒有則用平均 RSRP 替代)
-      const targetRSRP = stats.targetSatelliteRSRP ?? stats.averageRSRP;
-      // 將有效的目標衛星添加到候選列表開頭
-      candidates = [{
-        id: effectiveTargetId,
-        rsrp: targetRSRP,
-        meetsA4: true
-      }, ...candidates];
-    }
+  // 確保當前連接的衛星也出現在列表中（供辨識角色，即使暫時沒有列在候選清單）
+  if (currentSatelliteId && !candidates.some(c => c.id === currentSatelliteId)) {
+    candidates.unshift({
+      id: currentSatelliteId,
+      rsrp: stats.averageRSRP ?? -95,
+      meetsA4: true
+    });
+  }
+  // 若目標衛星正在換手，確保出現在列表中
+  if (isHandoverRelatedPhase && effectiveTargetId && !candidates.some(c => c.id === effectiveTargetId)) {
+    candidates.unshift({
+      id: effectiveTargetId,
+      rsrp: stats.targetSatelliteRSRP ?? stats.averageRSRP ?? -95,
+      meetsA4: true
+    });
   }
 
   // 對候選列表進行排序：
-  // 1. 活躍的候選衛星（有連線的）優先顯示
-  // 2. 其次按 RSRP 由高到低排序
+  // 1. 當前連線優先
+  // 2. 目標連線次之
+  // 3. 其餘按 RSRP 由高到低排序
   candidates.sort((a, b) => {
-    const isActiveA = activeCandidateIds.includes(a.id);
-    const isActiveB = activeCandidateIds.includes(b.id);
+    const isCurrentA = currentSatelliteId && a.id === currentSatelliteId;
+    const isCurrentB = currentSatelliteId && b.id === currentSatelliteId;
+    if (isCurrentA && !isCurrentB) return -1;
+    if (!isCurrentA && isCurrentB) return 1;
 
-    if (isActiveA && !isActiveB) return -1;
-    if (!isActiveA && isActiveB) return 1;
+    const isTargetA = effectiveTargetId && a.id === effectiveTargetId;
+    const isTargetB = effectiveTargetId && b.id === effectiveTargetId;
+    if (isTargetA && !isTargetB) return -1;
+    if (!isTargetA && isTargetB) return 1;
 
     return b.rsrp - a.rsrp;
   });
@@ -112,6 +121,20 @@ export function RSRPMethodPanel({
       flexDirection: 'column',
       gap: '20px'
     }}>
+      {/* 候選衛星列表 */}
+      {candidates.length > 0 && (
+        <CandidateList
+          candidates={candidates}
+          threshold={a4Event?.threshold || -100}
+          maxDisplay={5}
+          constellation={constellation}
+          targetSatelliteId={effectiveTargetId || null}
+          currentSatelliteId={currentSatelliteId || null}
+          currentPhase={currentPhase}
+          visibleCandidateIds={stats.candidateSatellites || []}
+        />
+      )}
+
       {/* A4 事件監測 */}
       {hasA4Event && (
         <div>
@@ -125,18 +148,6 @@ export function RSRPMethodPanel({
             isCounting={a4Event.active && a4Event.elapsedTime < a4Event.requiredTime}
           />
         </div>
-      )}
-
-      {/* 候選衛星列表 */}
-      {candidates.length > 0 && (
-        <CandidateList
-          candidates={candidates}
-          threshold={a4Event?.threshold || -100}
-          maxDisplay={5}
-          constellation={constellation}
-          currentPhase={currentPhase}
-          activeCandidateIds={activeCandidateIds}
-        />
       )}
 
       {/* 分隔線 */}

@@ -48,7 +48,7 @@ export function A4EventPanel({ stats, constellation }: A4EventPanelProps) {
         top: 0,
         right: 0,
         height: '100%',
-        width: '340px',
+        width: '360px',
         backgroundColor: 'rgba(0, 0, 0, 0.9)',
         backdropFilter: 'blur(10px)',
         borderLeft: '1px solid rgba(255, 255, 255, 0.15)',

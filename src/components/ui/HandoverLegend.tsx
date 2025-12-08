@@ -11,40 +11,13 @@ interface HandoverLegendProps {
 export function HandoverLegend({ phase, show }: HandoverLegendProps) {
   if (!show) return null;
 
-  // 根據階段顯示相關的圖例項目
-  const getLegendItems = () => {
-    switch (phase) {
-      case 'preparing':
-        return [
-          { color: '#ffaa00', label: 'Current Link (Weakening)', type: 'solid' },
-          { color: '#88aaff', label: 'Candidate Satellite', type: 'dashed' }
-        ];
-      case 'selecting':
-        return [
-          { color: '#ffaa00', label: 'Current Link', type: 'solid' },
-          { color: '#00aaff', label: 'Selected Target', type: 'dashed' }
-        ];
-      case 'establishing':
-        return [
-          { color: '#cc8800', label: 'Old Link (Fading)', type: 'solid' },
-          { color: '#0088ff', label: 'New Link (Establishing)', type: 'solid' }
-        ];
-      case 'switching':
-        return [
-          { color: '#888888', label: 'Old Link (Disconnecting)', type: 'solid' },
-          { color: '#0088ff', label: 'New Link (Taking Over)', type: 'solid' }
-        ];
-      case 'completing':
-        return [
-          { color: '#00ff88', label: 'New Link (Established)', type: 'solid' }
-        ];
-      default:
-        return [];
-    }
-  };
+  const items = [
+    { color: '#0088ff', label: 'Current Service Link', type: 'solid' },
+    { color: '#00ff88', label: 'Target Link (Handover)', type: 'solid' },
+    { color: '#5c6475', label: 'Candidate Satellites (Dashed)', type: 'dashed' }
+  ];
 
-  const items = getLegendItems();
-  if (items.length === 0) return null;
+  const phaseLabel = phase === 'stable' ? 'Stable' : `Handover: ${phase}`;
 
   return (
     <div style={{
@@ -78,7 +51,11 @@ export function HandoverLegend({ phase, show }: HandoverLegendProps) {
         alignItems: 'center',
         gap: '8px'
       }}>
-        🔄 Connection Status Legend
+        🔄 Connection Legend — {phaseLabel}
+      </div>
+
+      <div style={{ color: '#bbbbbb', fontSize: '12px', marginBottom: '12px' }}>
+        Bright/Bold = Strong, Dim/Thin = Weak; Dashed = Candidate link not yet established.
       </div>
 
       {/* 圖例項目 */}

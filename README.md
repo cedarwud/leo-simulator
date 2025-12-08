@@ -29,6 +29,15 @@ That's it! The app will open at `http://localhost:3000` 🎉
 
 ---
 
+## 🧭 開發注意事項（避免 HMR 被舊 .js 影響）
+
+- 專案採用 TypeScript，`tsconfig.json` 已設定 `"noEmit": true`，避免在 `src/` 產出 `.js`。
+- 請使用提供的指令（`npm run dev` / `npm run build` / `npm run typecheck`），不要直接跑裸的 `tsc`，以免在 `src/` 生成 `.js` 讓 Vite/HMR 誤載舊檔。
+- 若不小心把 TS 編譯出的 `.js` 帶進 `src/`，可執行 `npm run clean:ts-output` 清除（只會刪除與同名 `.ts/.tsx` 共存的 `.js/.map`，不會刪掉手寫 JS）。
+- `npm run dev` / `npm run build` 會自動先跑清理腳本，確保開發時載入的都是最新 TS/TSX 原始碼。
+
+---
+
 ## 📦 What's Included
 
 This repository includes **pre-generated satellite data** for immediate use:
@@ -166,6 +175,10 @@ npm run preview      # Preview production build
 
 # Code Quality
 npm run lint         # ESLint check
+npm run typecheck    # TypeScript type-only check (no emit)
+
+# Utilities
+npm run clean:ts-output  # Remove generated .js/.map that shadow TS/TSX
 ```
 
 ---

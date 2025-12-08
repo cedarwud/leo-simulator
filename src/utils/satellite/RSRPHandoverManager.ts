@@ -31,7 +31,7 @@ export class RSRPHandoverManager {
   private config: RSRPHandoverConfig = {
     a4Threshold: -100,
     timeToTrigger: 10,
-    handoverCooldown: 12
+    handoverCooldown: 10
   };
 
   // 固定參數
@@ -42,14 +42,22 @@ export class RSRPHandoverManager {
   private readonly FREQUENCY_GHZ = 2.0;          // S-band（論文使用 S-band）
   private readonly TX_POWER_DBM = 50.0;          // Satellite EIRP density 34 dBW/MHz ≈ 50 dBm
 
-  // 階段持續時間（與 Enhanced 相同）
+  // 階段持續時間（會依 timeSpeed 縮放）
   private readonly PHASE_DURATIONS = {
-    preparing: 12,
-    selecting: 10,
+    preparing: 9,
+    selecting: 7,
     establishing: 12,
-    switching: 12,
+    switching: 14,
     completing: 4
   };
+
+  private timeScale = 1;
+
+  private getScaledDuration(phase: keyof typeof this.PHASE_DURATIONS) {
+    const base = this.PHASE_DURATIONS[phase];
+    const scale = Math.max(1, Math.min(this.timeScale, 3)); // 限制縮放，避免過快
+    return Math.max(3.5, base / scale);
+  }
 
   private readonly UAV_POSITION = new THREE.Vector3(0, 10, 0);
 
@@ -92,8 +100,11 @@ export class RSRPHandoverManager {
    */
   update(
     visibleSatellites: Map<string, THREE.Vector3>,
-    currentTime: number
+    currentTime: number,
+    timeSpeed: number = 1
   ): HandoverState {
+    this.timeScale = Math.max(1, timeSpeed);
+
     const metrics = this.calculateMetrics(visibleSatellites);
 
     if (metrics.length === 0) {
@@ -163,6 +174,13 @@ export class RSRPHandoverManager {
     // 檢查是否可以啟動事件：有候選衛星且冷卻時間已過
     const canStartEvent = candidatesAboveThreshold.length > 0 &&
                           currentTime - this.lastHandoverTime > this.config.handoverCooldown;
+    // 提前換手條件：訊號接近或低於閾值，或仰角過低
+    const currentRsrp = current.rsrp ?? -150;
+    const isCurrentVeryWeak = currentRsrp < (this.config.a4Threshold + 3); // 更早啟動但不過度
+    const isCurrentCritical = currentRsrp < (this.config.a4Threshold - 2);
+    const isCurrentElevationLow = (current.elevation ?? 90) < 38;
+    const isCurrentElevationCritical = (current.elevation ?? 90) < 22;
+    const bestNeighbor = this.findBestNeighbor(metrics, current);
 
     if (canStartEvent) {
       const bestCandidate = candidatesAboveThreshold[0];
@@ -204,6 +222,19 @@ export class RSRPHandoverManager {
           candidatesAboveThreshold: []
         };
       }
+    } else if ((isCurrentCritical || isCurrentElevationCritical) &&
+               currentTime - this.lastHandoverTime > this.config.handoverCooldown &&
+               bestNeighbor) {
+      // 當前訊號/仰角極低時直接跳到建立階段
+      this.startImmediateHandover(metrics, currentTime);
+      return;
+    } else if ((isCurrentVeryWeak || isCurrentElevationLow) &&
+               currentTime - this.lastHandoverTime > this.config.handoverCooldown &&
+               bestNeighbor) {
+      // 當前訊號/仰角過低且沒有超閾候選，啟動緊急準備（使用最佳可見鄰居）
+      this.enterEmergencyPreparing(metrics, currentTime);
+      this.currentState.signalStrength.current = 0.7;
+      return;
     } else {
       // 事件未啟動或取消（但仍然顯示候選衛星列表）
       if (this.eventStartTime !== null) {
@@ -275,11 +306,67 @@ export class RSRPHandoverManager {
   }
 
   /**
+   * 立即進入建立階段（當前衛星即將失聯時）
+   */
+  private startImmediateHandover(metrics: SatelliteMetrics[], currentTime: number) {
+    const candidates = metrics
+      .filter(m => m.satelliteId !== this.currentState.currentSatelliteId)
+      .sort((a, b) => (b.rsrp ?? -Infinity) - (a.rsrp ?? -Infinity))
+      .slice(0, 6);
+
+    if (candidates.length === 0) return;
+
+    const target = candidates[0];
+    this.currentState.candidateSatelliteIds = candidates.map(c => c.satelliteId);
+    this.currentState.targetSatelliteId = target.satelliteId;
+    this.currentState.phase = 'establishing';
+    this.phaseStartTime = currentTime;
+    this.currentState.progress = 0;
+    this.currentState.signalStrength.current = 0.6;
+    this.currentState.signalStrength.target = 0.4;
+
+    // 重置 A4 事件追蹤
+    this.eventStartTime = null;
+    this.eventTargetSatelliteId = null;
+    if (this.currentState.a3Event) {
+      this.currentState.a3Event.active = false;
+      this.currentState.a3Event.targetSatelliteId = null;
+      this.currentState.a3Event.elapsedTime = 0;
+    }
+  }
+
+  /**
+   * 緊急準備階段（當當前訊號過低/仰角過低時，無須等 A4 閾值）
+   */
+  private enterEmergencyPreparing(metrics: SatelliteMetrics[], currentTime: number) {
+    this.currentState.phase = 'preparing';
+    this.phaseStartTime = currentTime;
+    this.currentState.progress = 0;
+
+    const candidates = metrics
+      .filter(m => m.satelliteId !== this.currentState.currentSatelliteId)
+      .sort((a, b) => (b.rsrp ?? -Infinity) - (a.rsrp ?? -Infinity))
+      .slice(0, 6)
+      .map(m => m.satelliteId);
+
+    this.currentState.candidateSatelliteIds = candidates;
+
+    // 重置 A4 事件追蹤
+    this.eventStartTime = null;
+    this.eventTargetSatelliteId = null;
+    if (this.currentState.a3Event) {
+      this.currentState.a3Event.active = false;
+      this.currentState.a3Event.targetSatelliteId = null;
+      this.currentState.a3Event.elapsedTime = 0;
+    }
+  }
+
+  /**
    * 準備階段
    */
   private updatePreparingPhase(metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.preparing, 1.0);
+    this.currentState.progress = Math.min(elapsed / this.getScaledDuration('preparing'), 1.0);
 
     const current = metrics.find(m => m.satelliteId === this.currentState.currentSatelliteId);
 
@@ -308,7 +395,7 @@ export class RSRPHandoverManager {
    */
   private updateSelectingPhase(metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.selecting, 1.0);
+    this.currentState.progress = Math.min(elapsed / this.getScaledDuration('selecting'), 1.0);
 
     // 確保有目標（RSRP 最高者）
     if (!this.currentState.targetSatelliteId && this.currentState.candidateSatelliteIds.length > 0) {
@@ -338,13 +425,13 @@ export class RSRPHandoverManager {
    */
   private updateEstablishingPhase(metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.establishing, 1.0);
+    this.currentState.progress = Math.min(elapsed / this.getScaledDuration('establishing'), 1.0);
 
-    // 目標訊號緩慢持續增強（0.3 → 0.6）
-    this.currentState.signalStrength.target = 0.3 + (this.currentState.progress * 0.3);
+    // 目標訊號緩慢持續增強（0.25 → 0.65）
+    this.currentState.signalStrength.target = 0.25 + (this.currentState.progress * 0.4);
 
-    // 當前訊號緩慢持續減弱（0.7 → 0.4）
-    this.currentState.signalStrength.current = 0.7 - (this.currentState.progress * 0.3);
+    // 當前訊號緩慢持續減弱（0.8 → 0.35）
+    this.currentState.signalStrength.current = 0.8 - (this.currentState.progress * 0.45);
 
     // 階段完成
     if (this.currentState.progress >= 1.0) {
@@ -357,11 +444,11 @@ export class RSRPHandoverManager {
    */
   private updateSwitchingPhase(_metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.switching, 1.0);
+    this.currentState.progress = Math.min(elapsed / this.getScaledDuration('switching'), 1.0);
 
-    // 平滑的交叉淡入淡出（0.4 → 0, 0.6 → 1.0）
-    this.currentState.signalStrength.current = 0.4 * (1 - this.currentState.progress);
-    this.currentState.signalStrength.target = 0.6 + (this.currentState.progress * 0.4);
+    // 平滑的交叉淡入淡出（0.35 → 0, 0.65 → 1.0）
+    this.currentState.signalStrength.current = 0.35 * (1 - this.currentState.progress);
+    this.currentState.signalStrength.target = 0.65 + (this.currentState.progress * 0.35);
 
     // 階段完成
     if (this.currentState.progress >= 1.0) {
@@ -374,7 +461,7 @@ export class RSRPHandoverManager {
    */
   private updateCompletingPhase(_metrics: SatelliteMetrics[], currentTime: number) {
     const elapsed = currentTime - this.phaseStartTime;
-    this.currentState.progress = Math.min(elapsed / this.PHASE_DURATIONS.completing, 1.0);
+    this.currentState.progress = Math.min(elapsed / this.getScaledDuration('completing'), 1.0);
 
     // 目標訊號達到最大
     this.currentState.signalStrength.target = 1.0;

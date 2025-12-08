@@ -120,7 +120,8 @@ export class EnhancedHandoverManager {
    */
   update(
     visibleSatellites: Map<string, THREE.Vector3>,
-    currentTime: number
+    currentTime: number,
+    _timeSpeed: number = 1
   ): HandoverState {
     // 計算所有衛星指標
     const metrics = this.calculateMetrics(visibleSatellites);
