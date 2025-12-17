@@ -3,18 +3,22 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { SatelliteOrbitCalculator } from '@/utils/satellite/SatelliteOrbitCalculator';
 import { EnhancedHandoverManager } from '@/utils/satellite/EnhancedHandoverManager';
-import { RSRPHandoverManager } from '@/utils/satellite/RSRPHandoverManager';
+import { RSRPHandoverManager, RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
 import { EnhancedSatelliteLinks } from './EnhancedSatelliteLinks';
 import { SatelliteLabel } from './SatelliteLabel';
 import { HandoverState } from '@/types/handover';
 import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { calculatePathLoss } from '@/utils/satellite/PathLossCalculator';
+import { GeometricConfig } from '../ui/sidebar/GeometricMethodPanel';
+import { ENERGY_CONFIG } from '@/config/energy.config';
 import * as THREE from 'three';
 
 interface SatellitesProps {
   dataUrl: string;
   timeSpeed?: number;
   handoverMethod?: HandoverMethodType;
+  rsrpConfig?: RSRPHandoverConfig;
+  geometricConfig?: GeometricConfig;
   onStatsUpdate?: (stats: HandoverStats, satelliteId: string | null, phase: string) => void;
 }
 
@@ -57,6 +61,13 @@ const generateInitialStats = (method: HandoverMethodType): HandoverStats => {
   const variance = 0.9 + Math.random() * 0.2;
   totalHandovers = Math.floor(totalHandovers * variance);
 
+  // 🔋 計算初始能耗（基於初始換手次數）
+  // 根據 Ntabeni et al. (2025)，每次換手消耗 3 Joules
+  const initialEnergyConsumption = totalHandovers * ENERGY_CONFIG.ENERGY_PER_HANDOVER;
+  const averageEnergyPerSecond = initialElapsedTime > 0
+    ? initialEnergyConsumption / initialElapsedTime
+    : 0;
+
   return {
     totalHandovers,
     pingPongEvents,
@@ -65,17 +76,28 @@ const generateInitialStats = (method: HandoverMethodType): HandoverStats => {
     averageSINR: 10 + (Math.random() - 0.5) * 2, // 9 到 11 dB
     connectionDuration: avgConnectionDuration + (Math.random() - 0.5) * 10, // ±5秒變化
     serviceInterruptions: Math.floor(Math.random() * 3), // 0-2 次中斷
-    elapsedTime: initialElapsedTime
+    elapsedTime: initialElapsedTime,
+    // 🔋 能耗效率指標 (Ntabeni et al., 2025)
+    energyConsumption: initialEnergyConsumption,
+    energyPerHandover: ENERGY_CONFIG.ENERGY_PER_HANDOVER,
+    averageEnergyPerSecond
   };
 };
 
-export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometric', onStatsUpdate }: SatellitesProps) {
+export function Satellites({
+  dataUrl,
+  timeSpeed = 1.0,
+  handoverMethod = 'geometric',
+  rsrpConfig,
+  geometricConfig,
+  onStatsUpdate
+}: SatellitesProps) {
   const [calculator] = useState(() => new SatelliteOrbitCalculator());
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const elapsedTimeRef = useRef(0);
   const lastLogTimeRef = useRef(-1);
-  
+
   const labelsRef = useRef<Map<string, THREE.Group>>(new Map()); // Ref for labels
 
   // 判斷是否為 OneWeb 星座
@@ -109,6 +131,25 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
     connectionStartTimeRef.current = newStats.elapsedTime;
     lastHandoverTimeRef.current = newStats.elapsedTime;
   }, [handoverMethod]);
+
+  // 🔧 當配置參數改變時，更新換手管理器的配置
+  useEffect(() => {
+    if (handoverMethod === 'rsrp' && rsrpConfig) {
+      // 更新 RSRP 方法的配置
+      (handoverManager as RSRPHandoverManager).updateConfig(rsrpConfig);
+      console.log('✅ RSRP 配置已更新:', rsrpConfig);
+    } else if (handoverMethod === 'geometric' && geometricConfig) {
+      // 更新 Geometric 方法的配置
+      (handoverManager as EnhancedHandoverManager).updateConfig({
+        elevationWeight: geometricConfig.elevationWeight,
+        triggerElevation: geometricConfig.triggerElevation,
+        handoverCooldown: geometricConfig.handoverCooldown,
+        animationSpeed: 'normal', // 使用默認值
+        candidateCount: 6 // 使用默認值
+      });
+      console.log('✅ Geometric 配置已更新:', geometricConfig);
+    }
+  }, [handoverMethod, rsrpConfig, geometricConfig, handoverManager]);
 
   // 換手狀態
   const [handoverState, setHandoverState] = useState<HandoverState | null>(null);
@@ -154,6 +195,11 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
       // 換手發生
       statsRef.current.totalHandovers++;
 
+      // 🔋 累積能耗（每次換手消耗固定能量）
+      // 基於 Ntabeni et al. (2025): E_handover = 3 Joules
+      // 原始來源: Chen et al. (2019) [ref 37]
+      statsRef.current.energyConsumption += ENERGY_CONFIG.ENERGY_PER_HANDOVER;
+
       // 檢測 ping-pong（10秒內回到前一顆衛星）
       const timeSinceLastHandover = elapsedTimeRef.current - lastHandoverTimeRef.current;
       if (timeSinceLastHandover < 10) {
@@ -170,6 +216,12 @@ export function Satellites({ dataUrl, timeSpeed = 1.0, handoverMethod = 'geometr
           statsRef.current.totalHandovers;
       }
       connectionStartTimeRef.current = elapsedTimeRef.current;
+    }
+
+    // 🔋 更新平均功率消耗 (Watts = Joules / seconds)
+    if (elapsedTimeRef.current > 0) {
+      statsRef.current.averageEnergyPerSecond =
+        statsRef.current.energyConsumption / elapsedTimeRef.current;
     }
 
     // 檢測服務中斷（沒有連接）

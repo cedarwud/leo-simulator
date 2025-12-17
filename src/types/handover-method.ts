@@ -87,6 +87,13 @@ export interface HandoverStats {
       rsrp: number;
     }>;
   };
+
+  // 🔋 能耗效率指標（基於 Ntabeni et al., 2025 Energy-Aware Q-Learning）
+  // 參考: "Adaptive Handover Optimization in LEO Satellite Networks Using Energy-Aware Q-Learning"
+  // IEEE Open Journal of the Communications Society, vol. 6, pp. 5657-5666, 2025
+  energyConsumption: number;         // 累積能耗 (Joules)
+  energyPerHandover: number;         // 每次換手能量成本 (Joules) - 論文設定 3J [ref: Chen et al., 2019]
+  averageEnergyPerSecond?: number;   // 平均功率消耗 (Watts = J/s)
 }
 
 /**

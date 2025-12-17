@@ -15,6 +15,7 @@ import { HandoverLegend } from '../ui/HandoverLegend';
 import { GeometricConfig } from '../ui/sidebar/GeometricMethodPanel';
 import { RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
+import { ENERGY_CONFIG } from '@/config/energy.config';
 import Starfield from '../ui/Starfield';
 
 // Loading indicator in 3D scene
@@ -46,7 +47,11 @@ export function MainScene() {
       averageSINR: 10,
       connectionDuration: 0,
       serviceInterruptions: 0,
-      elapsedTime: 0
+      elapsedTime: 0,
+      // 能耗效率指標 (基於 Ntabeni et al., 2025)
+      energyConsumption: 0,
+      energyPerHandover: ENERGY_CONFIG.ENERGY_PER_HANDOVER,
+      averageEnergyPerSecond: 0
     });
     const [currentSatelliteId, setCurrentSatelliteId] = useState<string | null>(null);
     const [currentPhase, setCurrentPhase] = useState<string>('stable');
@@ -194,6 +199,8 @@ export function MainScene() {
               dataUrl={`/data/satellite-timeseries-${constellation}.json`}
               timeSpeed={timeSpeed}
               handoverMethod={handoverMethod}
+              rsrpConfig={rsrpConfig}
+              geometricConfig={geometricConfig}
               onStatsUpdate={handleStatsUpdate}
               key={`${constellation}-${handoverMethod}`} // Force reload when constellation or method changes
             />

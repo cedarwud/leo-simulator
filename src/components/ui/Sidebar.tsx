@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { HandoverMethodType, HANDOVER_METHODS, HandoverStats } from '@/types/handover-method';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { GlobalControls } from './sidebar/GlobalControls';
+import { EnergyEfficiencyPanel } from './sidebar/EnergyEfficiencyPanel';
 
 // Derive readable text colors based on background brightness
 function getContrastTextColor(hex: string) {
@@ -542,6 +543,16 @@ export function Sidebar({
               </div>
             </div>
           </div>
+
+          {/* 分隔線 */}
+          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+
+          {/* 能耗效率面板 (Ntabeni et al., 2025) */}
+          <EnergyEfficiencyPanel
+            stats={stats}
+            currentMethod={currentMethod}
+            methodColor={method.color}
+          />
         </div>
       </div>
     </>

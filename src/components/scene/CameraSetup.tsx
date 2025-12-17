@@ -5,7 +5,7 @@ import { NTPU_CONFIG } from '@/config/ntpu.config';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'; // For type inference
 
 interface CameraSetupProps {
-  controlsRef: React.RefObject<OrbitControlsImpl>;
+  controlsRef: React.RefObject<OrbitControlsImpl | null>;
 }
 
 export function CameraSetup({ controlsRef }: CameraSetupProps) {
