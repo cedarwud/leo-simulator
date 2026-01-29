@@ -140,16 +140,28 @@ export function LandingPage() {
             </div>
           </Link>
 
-          {/* Beam Hopping 卡片 (Coming Soon) */}
-          <div
+          {/* Beam Hopping 卡片 */}
+          <Link
+            to="/beam-hopping"
             style={{
               width: '320px',
               padding: '40px 30px',
-              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-              border: '2px solid rgba(255, 255, 255, 0.15)',
+              backgroundColor: 'rgba(0, 255, 136, 0.1)',
+              border: '2px solid rgba(0, 255, 136, 0.5)',
               borderRadius: '16px',
-              cursor: 'not-allowed',
-              opacity: 0.6
+              textDecoration: 'none',
+              transition: 'all 0.3s ease',
+              cursor: 'pointer'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(0, 255, 136, 0.2)';
+              e.currentTarget.style.borderColor = '#00ff88';
+              e.currentTarget.style.transform = 'translateY(-4px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(0, 255, 136, 0.1)';
+              e.currentTarget.style.borderColor = 'rgba(0, 255, 136, 0.5)';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             <div style={{
@@ -162,7 +174,7 @@ export function LandingPage() {
             <h2 style={{
               fontSize: '24px',
               fontWeight: '600',
-              color: 'rgba(255, 255, 255, 0.5)',
+              color: '#00ff88',
               margin: '0 0 12px 0',
               textAlign: 'center'
             }}>
@@ -170,7 +182,7 @@ export function LandingPage() {
             </h2>
             <p style={{
               fontSize: '14px',
-              color: 'rgba(255, 255, 255, 0.4)',
+              color: 'rgba(255, 255, 255, 0.7)',
               margin: '0 0 20px 0',
               textAlign: 'center',
               lineHeight: '1.6'
@@ -178,16 +190,27 @@ export function LandingPage() {
               Multi-beam time-division hopping simulation for LEO satellites
             </p>
             <div style={{
-              textAlign: 'center',
-              padding: '8px 16px',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              borderRadius: '8px',
-              color: 'rgba(255, 255, 255, 0.4)',
-              fontSize: '14px'
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px',
+              justifyContent: 'center'
             }}>
-              Coming Soon
+              {['7-Beam', 'FRF3', 'Time Slots', '3GPP'].map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    padding: '4px 12px',
+                    backgroundColor: 'rgba(0, 255, 136, 0.2)',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    color: '#88ffcc'
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* 底部資訊 */}

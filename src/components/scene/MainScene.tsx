@@ -159,6 +159,7 @@ export function MainScene() {
             ref={controlsRef} // Attach ref here
             enableDamping
             dampingFactor={0.05}
+            zoomSpeed={0.5}
             minDistance={10}
             maxDistance={10000}
             maxPolarAngle={Math.PI / 2}

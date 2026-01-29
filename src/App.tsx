@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { LandingPage, SatelliteHandoverPage } from './pages';
+import { LandingPage, SatelliteHandoverPage, BeamHoppingPage } from './pages';
 
 function App() {
   return (
@@ -8,6 +8,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/satellite-handover" element={<SatelliteHandoverPage />} />
+        <Route path="/beam-hopping" element={<BeamHoppingPage />} />
       </Routes>
     </BrowserRouter>
   );
