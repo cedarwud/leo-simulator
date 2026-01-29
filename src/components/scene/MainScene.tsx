@@ -16,7 +16,7 @@ import { GeometricConfig } from '../ui/sidebar/GeometricMethodPanel';
 import { RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
 import { ENERGY_CONFIG } from '@/config/energy.config';
-import Starfield from '../ui/Starfield';
+import { Starfield } from '../../shared/components';
 
 // Loading indicator in 3D scene
 function Loader() {

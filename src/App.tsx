@@ -1,8 +1,16 @@
 import React from 'react';
-import { MainScene } from './components/scene/MainScene';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { LandingPage, SatelliteHandoverPage } from './pages';
 
 function App() {
-  return <MainScene />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/satellite-handover" element={<SatelliteHandoverPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 export default App;
