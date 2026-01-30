@@ -260,34 +260,24 @@ export class SatelliteOrbitCalculator {
       );
     }
 
-    // 兩個點都可見，檢查是否需要平滑插值
-    let interpolatedPoint: TimeseriesPoint;
+    // 在直角座標空間中插值（避免球面座標在天頂的奇點問題）
+    // 先將兩個點轉換為直角座標
+    const pos1 = this.sphericalToCartesian(
+      currentPoint.elevation_deg,
+      currentPoint.azimuth_deg,
+      currentPoint.range_km
+    );
+    const pos2 = this.sphericalToCartesian(
+      nextPoint.elevation_deg,
+      nextPoint.azimuth_deg,
+      nextPoint.range_km
+    );
 
-    // 檢查方位角變化幅度（即使經過環形插值調整）
-    let azimuthDiff = nextPoint.azimuth_deg - currentPoint.azimuth_deg;
-    if (azimuthDiff > 180) {
-      azimuthDiff -= 360;
-    } else if (azimuthDiff < -180) {
-      azimuthDiff += 360;
-    }
-    const azimuthChange = Math.abs(azimuthDiff);
-
-    // 如果方位角變化超過 60° 且仰角較高，減少插值強度避免飄移
-    if (azimuthChange > 60 && currentPoint.elevation_deg > 45) {
-      // 高仰角 + 大方位角變化 = 接近天頂，使用減弱的插值
-      // 使用平方根函數減緩插值速度
-      const smoothT = Math.sqrt(t);
-      interpolatedPoint = this.interpolateTimeseriesPoint(currentPoint, nextPoint, smoothT);
-    } else {
-      // 正常插值
-      interpolatedPoint = this.interpolateTimeseriesPoint(currentPoint, nextPoint, t);
-    }
-
-    // 球面座標 → 3D 直角座標
-    return this.sphericalToCartesian(
-      interpolatedPoint.elevation_deg,
-      interpolatedPoint.azimuth_deg,
-      interpolatedPoint.range_km
+    // 在直角座標空間中線性插值（產生平滑曲線）
+    return new Vector3(
+      pos1.x + (pos2.x - pos1.x) * t,
+      pos1.y + (pos2.y - pos1.y) * t,
+      pos1.z + (pos2.z - pos1.z) * t
     );
   }
 

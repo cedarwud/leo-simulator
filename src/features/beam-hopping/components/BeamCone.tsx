@@ -23,8 +23,8 @@ export function BeamCone({
   beam,
   satelliteHeight,
   satellitePosition = [0, satelliteHeight, 0],
-  activeOpacity = 0.12,
-  inactiveOpacity = 0.03,
+  activeOpacity = 0.06,
+  inactiveOpacity = 0.015,
 }: BeamConeProps) {
   const groupRef = useRef<THREE.Group>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -107,7 +107,7 @@ export function BeamCone({
           side={THREE.DoubleSide}
           depthWrite={false}
           emissive={beam.color}
-          emissiveIntensity={beam.isActive ? 0.08 : 0.02}
+          emissiveIntensity={beam.isActive ? 0.03 : 0.01}
         />
       </mesh>
     </group>

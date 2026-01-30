@@ -19,9 +19,10 @@ export function GroundCell({
   beam,
   showLabel = true,
 }: GroundCellProps) {
-  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
 
-  const targetOpacity = beam.isActive ? 0.4 : 0.15;
+  // Active 更亮，Inactive 較暗（Additive blending 會讓重疊區域更亮）
+  const targetOpacity = beam.isActive ? 0.6 : 0.3;
 
   useFrame((_, delta) => {
     if (materialRef.current) {
@@ -53,17 +54,16 @@ export function GroundCell({
 
   return (
     <group position={[beam.position.x, 0.5, beam.position.z]}>
-      {/* 填充區域 */}
+      {/* 填充區域 - 使用 Additive Blending 實現重疊混色效果 */}
       <mesh geometry={circleGeometry}>
-        <meshStandardMaterial
+        <meshBasicMaterial
           ref={materialRef}
           color={beam.color}
           transparent
-          opacity={0.15}
+          opacity={0.25}
           side={THREE.DoubleSide}
           depthWrite={false}
-          emissive={beam.color}
-          emissiveIntensity={beam.isActive ? 0.3 : 0.05}
+          blending={THREE.AdditiveBlending}
         />
       </mesh>
 

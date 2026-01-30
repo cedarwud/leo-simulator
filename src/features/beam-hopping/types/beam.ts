@@ -73,11 +73,16 @@ export interface BeamConfig {
 
 /**
  * 頻率複用顏色配置
+ * 使用高飽和度 RGB 原色，讓 Additive Blending 效果更明顯：
+ * - R + G = 黃色
+ * - G + B = 青色
+ * - R + B = 洋紅色
+ * - R + G + B = 白色
  */
 export const FRF3_COLORS = {
-  group0: '#0088ff',  // 藍色
-  group1: '#00ff88',  // 綠色
-  group2: '#ff8800',  // 橙色
+  group0: '#ff3333',  // 紅色
+  group1: '#33ff33',  // 綠色
+  group2: '#3333ff',  // 藍色
 } as const;
 
 /**

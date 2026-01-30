@@ -1,72 +1,258 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Line, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { Beam, DEFAULT_BEAM_CONFIG, FRF3_COLORS } from '../types';
+import { SatelliteOrbitCalculator } from '@/utils/satellite/SatelliteOrbitCalculator';
+import { Beam, DEFAULT_BEAM_CONFIG, FRF3_COLORS, DEFAULT_SCHEDULE } from '../types';
 import { BeamCones } from './BeamCone';
 import { GroundCells } from './GroundCells';
 import { WideBeam } from './WideBeam';
 
 const SATELLITE_MODEL_PATH = '/models/sat.glb';
+const ORBIT_DATA_URL = '/data/satellite-timeseries.json';
+
 useGLTF.preload(SATELLITE_MODEL_PATH);
 
-/**
- * 衛星配置（相對於 UAV 的初始位置和移動方向）
- */
-interface SatelliteConfig {
+// ============================================================
+// 編排的衛星系統（展示 beam handover）
+// ============================================================
+
+interface ScriptedSatellite {
   id: string;
-  /** 相對於 UAV 的初始偏移 */
-  offset: { x: number; z: number };
-  /** 移動方向（會正規化） */
-  direction: { x: number; z: number };
-  /** 速度倍率 */
-  speed: number;
+  startPos: THREE.Vector3;
+  endPos: THREE.Vector3;
+  startTime: number;
+  duration: number;
+  /** 是否會經過 UE 上方（用於顯示波束） */
+  passesOverUE: boolean;
 }
 
 /**
- * 預設衛星配置 - 2 顆衛星從不同方向移動
+ * 生成編排的衛星軌跡
+ * - 部分衛星會經過 UE 上方（展示 beam hopping）
+ * - 部分衛星在其他位置移動（豐富場景）
  */
-const SATELLITE_CONFIGS: SatelliteConfig[] = [
-  {
-    id: 'SAT-A',
-    offset: { x: -30, z: 20 },      // 靠近 UAV，一開始就有服務
-    direction: { x: 1, z: 0.15 },   // 緩慢向右移動
-    speed: 1.0,
-  },
-  {
-    id: 'SAT-B',
-    offset: { x: 280, z: 120 },     // 從右前方開始，較遠
-    direction: { x: -0.7, z: -0.4 },// 向左後方移動（朝 UAV 方向）
-    speed: 0.8,
-  },
-];
+function generateScriptedSatellites(
+  uavPosition: THREE.Vector3,
+  count: number,
+  interval: number,
+  satelliteHeight: number,
+  ambientCount: number = 6  // 額外的環境衛星數量
+): ScriptedSatellite[] {
+  const satellites: ScriptedSatellite[] = [];
+  const pathLength = 1000;
 
-const SATELLITE_HEIGHT = 500;
-const BASE_SPEED = 12; // 基礎移動速度（場景單位/秒）
-const RESET_DISTANCE = 400; // 超過此距離重置
+  // 1. 經過 UE 的衛星（展示 beam hopping）
+  for (let i = 0; i < count; i++) {
+    const angle = (i * 137.5 * Math.PI) / 180 + Math.PI / 6;
+    const dirX = Math.cos(angle);
+    const dirZ = Math.sin(angle);
+
+    satellites.push({
+      id: `sat-${i + 1}`,
+      startPos: new THREE.Vector3(
+        uavPosition.x - dirX * pathLength / 2,
+        satelliteHeight,
+        uavPosition.z - dirZ * pathLength / 2
+      ),
+      endPos: new THREE.Vector3(
+        uavPosition.x + dirX * pathLength / 2,
+        satelliteHeight,
+        uavPosition.z + dirZ * pathLength / 2
+      ),
+      startTime: i * interval,
+      duration: interval,
+      passesOverUE: true,
+    });
+  }
+
+  // 2. 不經過 UE 的環境衛星（豐富場景）
+  for (let i = 0; i < ambientCount; i++) {
+    // 在 UE 周圍的不同位置生成軌跡
+    const angle = (i * 60 + 30) * Math.PI / 180; // 每 60 度一顆
+    const offset = 200 + (i % 3) * 100; // 距離 UE 200-400 單位
+    const perpAngle = angle + Math.PI / 2;
+
+    // 軌跡中心點（偏離 UE）
+    const centerX = uavPosition.x + Math.cos(angle) * offset;
+    const centerZ = uavPosition.z + Math.sin(angle) * offset;
+
+    // 軌跡方向（垂直於偏移方向，看起來像平行軌道）
+    const dirX = Math.cos(perpAngle);
+    const dirZ = Math.sin(perpAngle);
+
+    // 時間錯開，讓衛星分散出現
+    const timeOffset = (i * interval / 2) % (count * interval);
+
+    satellites.push({
+      id: `ambient-${i + 1}`,
+      startPos: new THREE.Vector3(
+        centerX - dirX * pathLength / 2,
+        satelliteHeight + (i % 2) * 50, // 略微不同高度
+        centerZ - dirZ * pathLength / 2
+      ),
+      endPos: new THREE.Vector3(
+        centerX + dirX * pathLength / 2,
+        satelliteHeight + (i % 2) * 50,
+        centerZ + dirZ * pathLength / 2
+      ),
+      startTime: timeOffset,
+      duration: interval * 1.2, // 稍慢一點
+      passesOverUE: false,
+    });
+  }
+
+  return satellites;
+}
 
 /**
- * Beam Hopping 時隙排程（視覺化用，實際系統為毫秒級）
- * 每個時隙激活特定的波束組合（考慮 FRF3 避免干擾）
+ * 計算衛星當前位置
  */
-const BEAM_HOPPING_SCHEDULE = [
-  { activeBeams: [0], duration: 3000 },           // 中心波束
-  { activeBeams: [1, 4], duration: 3000 },        // 對角波束
-  { activeBeams: [2, 5], duration: 3000 },        // 對角波束
-  { activeBeams: [3, 6], duration: 3000 },        // 對角波束
-  { activeBeams: [0, 2, 4], duration: 3000 },     // 交錯組合
-  { activeBeams: [1, 3, 5], duration: 3000 },     // 交錯組合
-];
+function getScriptedSatellitePosition(
+  sat: ScriptedSatellite,
+  currentTime: number
+): THREE.Vector3 | null {
+  const localTime = currentTime - sat.startTime;
+  if (localTime < 0 || localTime > sat.duration) {
+    return null;
+  }
+
+  const progress = localTime / sat.duration;
+  return new THREE.Vector3().lerpVectors(sat.startPos, sat.endPos, progress);
+}
+
+// ============================================================
+// 訊號強度模型（基於 3GPP NTN 標準）
+// 參考：3GPP TR 38.821, PMC11511224
+// ============================================================
 
 /**
- * 生成以指定中心為基準的 7-beam 佈局
+ * 計算波束增益（簡化的 Bessel 函數模型）
+ * 參考：PMC11511224 - "A Beam Hopping Scheme Based on Adaptive Beam Radius for LEO Satellites"
+ *
+ * G(θ) = Gmax × (2×J₁(u)/u)²
+ * 其中 u = 2.07123 × sin(θ)/sin(θ₃dB)
+ *
+ * 簡化為：G(θ) = Gmax × (1 - (d/r)²)² for d < r
+ * 這是一個近似，在波束中心最強，向邊緣遞減
  */
-function generate7BeamLayoutAt(
-  centerX: number,
-  centerZ: number,
-  config: typeof DEFAULT_BEAM_CONFIG
-): Beam[] {
-  const { cellSpacing, coneRadiusBottom, frequencyReuseFactor } = config;
+function calculateBeamGain(
+  distanceFromCenter: number,
+  beamRadius: number,
+  maxGain: number = 30  // dBi，典型 LEO 衛星增益
+): number {
+  if (distanceFromCenter >= beamRadius) {
+    return -Infinity; // 波束外
+  }
+
+  // 正規化距離 (0 = 中心, 1 = 邊緣)
+  const normalizedDist = distanceFromCenter / beamRadius;
+
+  // 使用二次衰減模型（近似 Bessel 函數）
+  // 在中心增益最大，3dB 點大約在 0.5 半徑處
+  const gainReduction = 12 * Math.pow(normalizedDist, 2); // 邊緣約 -12dB
+
+  return maxGain - gainReduction;
+}
+
+/**
+ * 計算 RSRP（參考訊號接收功率）
+ * 參考：3GPP TS 38.215
+ *
+ * RSRP = EIRP + Gr - PathLoss
+ * 簡化模型：RSRP ∝ BeamGain - 10×log10(distance²)
+ */
+function calculateRSRP(
+  beamGain: number,        // dBi
+  distanceToSatellite: number,  // 場景單位
+  referenceDistance: number = 400  // 參考距離（衛星高度）
+): number {
+  if (beamGain === -Infinity) return -Infinity;
+
+  // 自由空間路徑損耗（簡化）
+  const pathLoss = 20 * Math.log10(distanceToSatellite / referenceDistance);
+
+  // RSRP = 波束增益 - 路徑損耗 + 常數偏移（使數值更直觀）
+  return beamGain - pathLoss + 50; // 偏移使 RSRP 大約在 -50 到 -90 dBm 範圍
+}
+
+/**
+ * 3GPP A3 Event 換手判斷
+ * 參考：3GPP TS 36.331 Section 5.5.4.4
+ *
+ * 觸發條件：RSRP_neighbor + Offset - Hysteresis > RSRP_serving
+ *
+ * @param rsrpServing - 當前服務波束的 RSRP
+ * @param rsrpNeighbor - 鄰近波束的 RSRP
+ * @param a3Offset - A3 偏移量 (dB)，正值表示需要更強訊號才換手
+ * @param hysteresis - 遲滯值 (dB)，防止 ping-pong
+ */
+function checkA3Event(
+  rsrpServing: number,
+  rsrpNeighbor: number,
+  a3Offset: number = 2,    // 典型值：2 dB
+  hysteresis: number = 1   // 典型值：1 dB
+): boolean {
+  return rsrpNeighbor + a3Offset - hysteresis > rsrpServing;
+}
+
+/**
+ * 在所有波束中找到最佳波束（RSRP 最強）
+ */
+interface BeamRSRPInfo {
+  beamId: number;
+  beamPos: { x: number; z: number };
+  rsrp: number;
+  gain: number;
+  distanceToUE: number;
+}
+
+function findBestBeam(
+  beams: Beam[],
+  uavPosition: THREE.Vector3,
+  satelliteHeight: number
+): BeamRSRPInfo | null {
+  let bestBeam: BeamRSRPInfo | null = null;
+  let maxRSRP = -Infinity;
+
+  for (const beam of beams) {
+    const dx = beam.position.x - uavPosition.x;
+    const dz = beam.position.z - uavPosition.z;
+    const distanceToUE = Math.sqrt(dx * dx + dz * dz);
+
+    // 計算波束增益
+    const gain = calculateBeamGain(distanceToUE, beam.radius);
+
+    if (gain === -Infinity) continue; // 不在波束覆蓋內
+
+    // 計算到衛星的距離（3D）
+    const distToSat = Math.sqrt(
+      dx * dx + dz * dz + satelliteHeight * satelliteHeight
+    );
+
+    // 計算 RSRP
+    const rsrp = calculateRSRP(gain, distToSat, satelliteHeight);
+
+    if (rsrp > maxRSRP) {
+      maxRSRP = rsrp;
+      bestBeam = {
+        beamId: beam.id,
+        beamPos: { x: beam.position.x, z: beam.position.z },
+        rsrp,
+        gain,
+        distanceToUE,
+      };
+    }
+  }
+
+  return bestBeam;
+}
+
+/**
+ * 生成 7-beam 佈局
+ */
+function generate7BeamLayout(centerX: number, centerZ: number): Beam[] {
+  const { cellSpacing, coneRadiusBottom, frequencyReuseFactor } = DEFAULT_BEAM_CONFIG;
   const colors = [FRF3_COLORS.group0, FRF3_COLORS.group1, FRF3_COLORS.group2];
 
   const beams: Beam[] = [
@@ -99,364 +285,614 @@ function generate7BeamLayoutAt(
   return beams;
 }
 
-/**
- * 找出 UAV 所在的波束
- */
-function findUAVBeam(
-  beams: Beam[],
-  uavPosition: THREE.Vector3
-): { beamId: number | null; isInCoverage: boolean } {
-  let closestBeamId: number | null = null;
-  let closestDistance = Infinity;
-  let isInCoverage = false;
+// ============================================================
+// 單顆編排衛星的波束系統
+// ============================================================
 
-  for (const beam of beams) {
-    const distance = Math.sqrt(
-      Math.pow(beam.position.x - uavPosition.x, 2) +
-      Math.pow(beam.position.z - uavPosition.z, 2)
-    );
-
-    if (distance < closestDistance) {
-      closestDistance = distance;
-      closestBeamId = beam.id;
-    }
-
-    if (distance <= beam.radius * 1.2) {
-      isInCoverage = true;
-    }
-  }
-
-  return { beamId: closestBeamId, isInCoverage };
-}
-
-type HandoverPhase = 'stable' | 'preparation' | 'switching' | 'completion';
-
-const HANDOVER_TIMING = {
-  preparation: 500,
-  switching: 250,
-  completion: 350,
-};
-
-interface MovingSatelliteProps {
-  config: SatelliteConfig;
+interface ScriptedSatelliteBeamSystemProps {
+  satellite: ScriptedSatellite;
+  position: THREE.Vector3;
   uavPosition: THREE.Vector3;
+  showBeams: boolean;      // 是否顯示波束（衛星激活後持續為 true）
+  isServingUE: boolean;    // 是否正在服務 UE（用於顯示連線）
   wideBeamRadius: number;
-  isServingSatellite: boolean;
-  onHandoverState?: (satelliteId: string, phase: HandoverPhase) => void;
+  /** 當前服務的波束 ID（用於 A3 換手判斷） */
+  currentServingBeamId: number | null;
+  /** 當服務波束改變時的回調 */
+  onServingBeamChange?: (beamInfo: BeamRSRPInfo | null) => void;
 }
 
-/**
- * 移動中的衛星（帶波束和換手動畫）
- */
-function MovingSatellite({
-  config,
+function ScriptedSatelliteBeamSystem({
+  satellite,
+  position,
   uavPosition,
+  showBeams,
+  isServingUE,
   wideBeamRadius,
-  isServingSatellite,
-  onHandoverState,
-}: MovingSatelliteProps) {
-  const { scene } = useGLTF(SATELLITE_MODEL_PATH);
+  currentServingBeamId,
+  onServingBeamChange,
+}: ScriptedSatelliteBeamSystemProps) {
+  const satPos: [number, number, number] = [position.x, position.y, position.z];
 
-  // 正規化移動方向
-  const normalizedDir = useMemo(() => {
-    const len = Math.sqrt(config.direction.x ** 2 + config.direction.z ** 2);
-    return { x: config.direction.x / len, z: config.direction.z / len };
-  }, [config.direction.x, config.direction.z]);
+  // 本地 ref 追蹤服務波束（避免依賴父組件 state 的延遲）
+  const localServingBeamRef = useRef<number | null>(null);
+  // 追蹤上一個服務的波束（用於 beam hopping 展示）
+  const previousServingBeamRef = useRef<number | null>(null);
 
-  // 衛星位置狀態
-  const [position, setPosition] = useState({
-    x: uavPosition.x + config.offset.x,
-    y: SATELLITE_HEIGHT,
-    z: uavPosition.z + config.offset.z,
+  // Beam hopping 時隙動畫（當不服務 UE 時使用）
+  const [slotIndex, setSlotIndex] = useState(0);
+  const slotTimeRef = useRef(0);
+
+  // 時隙循環動畫
+  useFrame((_, delta) => {
+    if (!showBeams) return;
+
+    slotTimeRef.current += delta * 1000; // 轉換為毫秒
+    const slotDuration = DEFAULT_SCHEDULE[slotIndex % DEFAULT_SCHEDULE.length].duration;
+
+    if (slotTimeRef.current >= slotDuration) {
+      slotTimeRef.current = 0;
+      setSlotIndex(prev => (prev + 1) % DEFAULT_SCHEDULE.length);
+    }
   });
 
-  // 換手狀態
-  const [handoverPhase, setHandoverPhase] = useState<HandoverPhase>('stable');
-  const [connectionOpacity, setConnectionOpacity] = useState(0.8);
-  const [previousBeamId, setPreviousBeamId] = useState<number | null>(null);
-  const [displayBeamId, setDisplayBeamId] = useState<number | null>(null);
-
-  const handoverTimerRef = useRef(0);
-  const lastBeamIdRef = useRef<number | null>(null);
-  const elapsedRef = useRef(0);
-
-  // Beam hopping 排程狀態
-  const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
-  const slotTimerRef = useRef(0);
-
-  // 生成波束佈局
+  // 波束佈局（以衛星地面投影為中心）
   const beamLayout = useMemo(
-    () => generate7BeamLayoutAt(position.x, position.z, DEFAULT_BEAM_CONFIG),
+    () => generate7BeamLayout(position.x, position.z),
     [position.x, position.z]
   );
 
-  // 當前時隙激活的波束
-  const activeBeamIds = BEAM_HOPPING_SCHEDULE[currentSlotIndex].activeBeams;
+  // A3 換手參數
+  const A3_OFFSET = 1;      // dB
+  const HYSTERESIS = 1;     // dB
 
-  // 找出 UAV 所在波束
-  const { beamId: uavBeamId, isInCoverage } = useMemo(
-    () => findUAVBeam(beamLayout, uavPosition),
-    [beamLayout, uavPosition]
-  );
+  // 計算所有波束到 UE 的距離和 RSRP
+  const allBeamsInfo = useMemo<BeamRSRPInfo[]>(() => {
+    if (!showBeams) return [];
 
-  // UAV 是否在當前激活的波束中（必須實際在覆蓋範圍內）
-  const isUAVInActiveBeam = isInCoverage && uavBeamId !== null && activeBeamIds.includes(uavBeamId);
+    const results: BeamRSRPInfo[] = [];
+    for (const beam of beamLayout) {
+      const dx = beam.position.x - uavPosition.x;
+      const dz = beam.position.z - uavPosition.z;
+      const distToUE = Math.sqrt(dx * dx + dz * dz);
+      const gain = calculateBeamGain(distToUE, beam.radius);
 
-  // 衛星移動 + Beam Hopping 排程 + 換手動畫
-  useFrame((_, delta) => {
-    elapsedRef.current += delta;
-    const t = elapsedRef.current;
-    const deltaMs = delta * 1000;
+      const distToSat = Math.sqrt(dx * dx + dz * dz + position.y * position.y);
+      const rsrp = gain === -Infinity ? -Infinity : calculateRSRP(gain, distToSat, position.y);
 
-    // === Beam Hopping 時隙切換 ===
-    slotTimerRef.current += deltaMs;
-    const currentSlotDuration = BEAM_HOPPING_SCHEDULE[currentSlotIndex].duration;
-    if (slotTimerRef.current >= currentSlotDuration) {
-      slotTimerRef.current = 0;
-      setCurrentSlotIndex((prev) => (prev + 1) % BEAM_HOPPING_SCHEDULE.length);
+      results.push({
+        beamId: beam.id,
+        beamPos: { x: beam.position.x, z: beam.position.z },
+        rsrp,
+        gain,
+        distanceToUE: distToUE,
+      });
     }
 
-    // === 衛星移動 ===
-    const speedVariation = 1 + 0.1 * Math.sin(t * 0.4);
-    const speed = BASE_SPEED * config.speed * speedVariation * delta;
+    return results;
+  }, [beamLayout, uavPosition, position.y, showBeams]);
 
-    let newX = position.x + normalizedDir.x * speed;
-    let newZ = position.z + normalizedDir.z * speed;
-
-    const distFromUAV = Math.sqrt(
-      Math.pow(newX - uavPosition.x, 2) + Math.pow(newZ - uavPosition.z, 2)
-    );
-
-    if (distFromUAV > RESET_DISTANCE) {
-      newX = uavPosition.x - normalizedDir.x * RESET_DISTANCE * 0.9;
-      newZ = uavPosition.z - normalizedDir.z * RESET_DISTANCE * 0.9;
+  // Beam Hopping 邏輯
+  // - 服務 UE 時：UE-aware（確保 UE 連接的波束 active）
+  // - 不服務 UE 時：時隙循環動畫（展示 beam hopping 效果）
+  const activeBeamIds = useMemo(() => {
+    if (!showBeams) {
+      return new Set<number>();
     }
 
-    const newY = SATELLITE_HEIGHT + 8 * Math.sin(t * 0.2);
-    setPosition({ x: newX, y: newY, z: newZ });
-
-    // === 換手動畫邏輯（基於 UAV 所在波束是否在當前激活列表中）===
-    if (!isServingSatellite) {
-      return;
+    // 不服務 UE 時，使用時隙循環動畫
+    if (!isServingUE) {
+      const slot = DEFAULT_SCHEDULE[slotIndex % DEFAULT_SCHEDULE.length];
+      return new Set(slot.activeBeams);
     }
 
-    // 追蹤 UAV 實際連接的波束（必須是激活的波束）
-    const effectiveBeamId = isUAVInActiveBeam ? uavBeamId : null;
+    const active = new Set<number>();
 
-    // 檢測服務波束切換（UAV 從一個激活波束移到另一個，或波束排程變化）
-    if (
-      lastBeamIdRef.current !== null &&
-      effectiveBeamId !== null &&
-      lastBeamIdRef.current !== effectiveBeamId &&
-      handoverPhase === 'stable'
-    ) {
-      setPreviousBeamId(lastBeamIdRef.current);
-      setHandoverPhase('preparation');
-      handoverTimerRef.current = 0;
-      onHandoverState?.(config.id, 'preparation');
+    // 找到 UE 在覆蓋範圍內的所有波束
+    const coveringBeams = allBeamsInfo.filter(b => b.gain !== -Infinity);
+
+    if (coveringBeams.length === 0) {
+      // UE 不在任何波束覆蓋內，使用時隙循環動畫
+      const slot = DEFAULT_SCHEDULE[slotIndex % DEFAULT_SCHEDULE.length];
+      return new Set(slot.activeBeams);
     }
 
-    // 換手動畫
-    if (handoverPhase !== 'stable') {
-      handoverTimerRef.current += deltaMs;
+    // 當前服務波束一定要 active
+    const servingId = localServingBeamRef.current ?? currentServingBeamId;
+    if (servingId !== null) {
+      active.add(servingId);
+    }
 
-      if (handoverPhase === 'preparation') {
-        const blinkSpeed = 15;
-        setConnectionOpacity(0.3 + Math.sin(handoverTimerRef.current * blinkSpeed / 1000 * Math.PI) * 0.5);
+    // 找到 RSRP 最強的波束（UE 即將進入或正在使用的）
+    const bestBeam = coveringBeams.reduce((best, b) =>
+      b.rsrp > best.rsrp ? b : best, coveringBeams[0]);
+    active.add(bestBeam.beamId);
 
-        if (handoverTimerRef.current >= HANDOVER_TIMING.preparation) {
-          setHandoverPhase('switching');
-          handoverTimerRef.current = 0;
-          onHandoverState?.(config.id, 'switching');
-        }
-      } else if (handoverPhase === 'switching') {
-        const progress = handoverTimerRef.current / HANDOVER_TIMING.switching;
-        setConnectionOpacity(Math.max(0, 0.8 * (1 - progress)));
-
-        if (handoverTimerRef.current >= HANDOVER_TIMING.switching) {
-          setHandoverPhase('completion');
-          setDisplayBeamId(effectiveBeamId);
-          handoverTimerRef.current = 0;
-          onHandoverState?.(config.id, 'completion');
-        }
-      } else if (handoverPhase === 'completion') {
-        const progress = handoverTimerRef.current / HANDOVER_TIMING.completion;
-        setConnectionOpacity(0.8 * progress);
-
-        if (handoverTimerRef.current >= HANDOVER_TIMING.completion) {
-          setHandoverPhase('stable');
-          setPreviousBeamId(null);
-          setConnectionOpacity(0.8);
-          lastBeamIdRef.current = effectiveBeamId;
-          onHandoverState?.(config.id, 'stable');
-        }
+    // 如果 UE 在重疊區（有多個波束覆蓋），讓即將切換的波束也 active
+    if (coveringBeams.length > 1) {
+      // 第二強的波束也 active（準備換手）
+      const sortedByRsrp = [...coveringBeams].sort((a, b) => b.rsrp - a.rsrp);
+      if (sortedByRsrp.length > 1) {
+        active.add(sortedByRsrp[1].beamId);
       }
-    } else {
-      lastBeamIdRef.current = effectiveBeamId;
-      setDisplayBeamId(effectiveBeamId);
     }
-  });
 
-  // 波束狀態（根據 beam hopping 排程決定 active）
+    return active;
+  }, [showBeams, isServingUE, allBeamsInfo, currentServingBeamId, slotIndex]);
+
+  // 只考慮 active 的波束來選擇連線
+  const coveringBeams = useMemo<BeamRSRPInfo[]>(() => {
+    return allBeamsInfo.filter(b =>
+      b.gain !== -Infinity && activeBeamIds.has(b.beamId)
+    ).sort((a, b) => b.rsrp - a.rsrp);
+  }, [allBeamsInfo, activeBeamIds]);
+
+  // A3 換手邏輯：使用本地 ref 確保穩定
+  const servingBeamInfo = useMemo<BeamRSRPInfo | null>(() => {
+    if (!showBeams || coveringBeams.length === 0) {
+      localServingBeamRef.current = null;
+      return null;
+    }
+
+    const bestBeam = coveringBeams[0];
+
+    // 獲取當前服務波束（優先使用本地 ref，其次是父組件傳入的值）
+    const currentBeamId = localServingBeamRef.current ?? currentServingBeamId;
+
+    // 如果沒有當前服務波束
+    if (currentBeamId === null) {
+      // 首次選擇：如果有多個波束 RSRP 相近（差距 < 2dB），選擇 ID 較小的（確定性選擇）
+      const similarBeams = coveringBeams.filter(b => bestBeam.rsrp - b.rsrp < 2);
+      const selected = similarBeams.reduce((min, b) => b.beamId < min.beamId ? b : min, similarBeams[0]);
+      localServingBeamRef.current = selected.beamId;
+      return selected;
+    }
+
+    // 找到當前服務波束的資訊
+    const currentBeamInfo = coveringBeams.find(b => b.beamId === currentBeamId);
+
+    // 如果當前波束已離開覆蓋範圍，切換到最佳波束
+    if (!currentBeamInfo) {
+      localServingBeamRef.current = bestBeam.beamId;
+      console.log(`📶 波束換手: B${currentBeamId} → B${bestBeam.beamId} (舊波束離開覆蓋)`);
+      return bestBeam;
+    }
+
+    // 如果最佳波束就是當前波束，維持
+    if (bestBeam.beamId === currentBeamId) {
+      return currentBeamInfo;
+    }
+
+    // A3 Event 檢查：只有當最佳波束顯著更強時才換手
+    const rsrpDiff = bestBeam.rsrp - currentBeamInfo.rsrp;
+    if (rsrpDiff > A3_OFFSET + HYSTERESIS) {
+      localServingBeamRef.current = bestBeam.beamId;
+      console.log(`📶 波束換手: B${currentBeamId} → B${bestBeam.beamId} (RSRP 差: +${rsrpDiff.toFixed(1)} dB)`);
+      return bestBeam;
+    }
+
+    // 維持當前波束
+    return currentBeamInfo;
+  }, [showBeams, coveringBeams, currentServingBeamId]);
+
+  // 通知父組件服務波束改變（只在真正改變時）
+  const lastNotifiedBeamRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (onServingBeamChange && isServingUE && servingBeamInfo) {
+      if (servingBeamInfo.beamId !== lastNotifiedBeamRef.current) {
+        lastNotifiedBeamRef.current = servingBeamInfo.beamId;
+        onServingBeamChange(servingBeamInfo);
+      }
+    }
+  }, [servingBeamInfo, onServingBeamChange, isServingUE]);
+
+  // 更新波束狀態（根據 beam hopping schedule 標記 active/inactive）
   const beamsWithState = useMemo(() => {
+    if (!showBeams) {
+      return beamLayout.map((b) => ({ ...b, isActive: false }));
+    }
+
+    // 根據當前時隙的 schedule 決定哪些波束是 active
     return beamLayout.map((beam) => ({
       ...beam,
-      // 波束 active 取決於排程，不取決於 UAV 位置
-      isActive: activeBeamIds.includes(beam.id),
+      isActive: activeBeamIds.has(beam.id),
     }));
-  }, [beamLayout, activeBeamIds]);
-
-  // 連線顏色
-  const connectionColor = useMemo(() => {
-    switch (handoverPhase) {
-      case 'preparation': return '#ffaa00';
-      case 'switching': return '#ff6600';
-      case 'completion': return '#88ff88';
-      default: return '#00ff00';
-    }
-  }, [handoverPhase]);
-
-  // 服務波束位置（UAV 所在的激活波束）
-  const servingBeamPosition = useMemo(() => {
-    if (!isServingSatellite || !isUAVInActiveBeam || displayBeamId === null) return null;
-    const beam = beamLayout.find(b => b.id === displayBeamId);
-    return beam ? beam.position : null;
-  }, [isServingSatellite, isUAVInActiveBeam, displayBeamId, beamLayout]);
-
-  // 克隆模型
-  const clonedScene = useMemo(() => {
-    const cloned = scene.clone(true);
-    cloned.traverse((obj: THREE.Object3D) => {
-      if ((obj as THREE.Mesh).isMesh) {
-        (obj as THREE.Mesh).castShadow = true;
-      }
-    });
-    return cloned;
-  }, [scene]);
-
-  const satPos: [number, number, number] = [position.x, position.y, position.z];
+  }, [beamLayout, showBeams, activeBeamIds]);
 
   return (
     <group>
-      {/* 衛星模型 */}
-      <group position={satPos} scale={isServingSatellite ? 8 : 6}>
-        <primitive object={clonedScene} />
-      </group>
-
       {/* 衛星標籤 */}
       <Text
-        position={[position.x, position.y + 35, position.z]}
+        position={[satPos[0], satPos[1] + 40, satPos[2]]}
         fontSize={14}
-        color={isServingSatellite ? '#00ff00' : '#888888'}
+        color={isServingUE ? '#00ff00' : showBeams ? '#88ff88' : '#666666'}
         anchorX="center"
         anchorY="middle"
         outlineWidth={1}
         outlineColor="#000000"
       >
-        {config.id}
+        {satellite.id}
       </Text>
 
-      {/* Wide Beam */}
+      {/* Wide Beam（總是顯示） */}
       <WideBeam
         satellitePosition={satPos}
         radius={wideBeamRadius}
         color="#ffffff"
-        coneOpacity={0.008}
-        groundOpacity={0.03}
+        coneOpacity={0.005}
+        groundOpacity={0.02}
       />
 
-      {/* Spot Beams */}
-      <BeamCones
-        beams={beamsWithState}
-        satelliteHeight={position.y}
-        satellitePosition={satPos}
-      />
-      <GroundCells beams={beamsWithState} showLabels={isServingSatellite} />
+      {/* Spot Beams（顯示波束時） */}
+      {showBeams && (
+        <>
+          <BeamCones
+            beams={beamsWithState}
+            satelliteHeight={position.y}
+            satellitePosition={satPos}
+          />
+          <GroundCells beams={beamsWithState} showLabels={true} />
+        </>
+      )}
 
-      {/* 服務連線（只有 UAV 在激活波束內才顯示）*/}
-      {isServingSatellite && isUAVInActiveBeam && servingBeamPosition && connectionOpacity > 0 && (
+      {/* 服務連線（只有正在服務 UE 且有服務波束時顯示一條線） */}
+      {isServingUE && servingBeamInfo && (
         <Line
           points={[
             satPos,
-            [servingBeamPosition.x, 0, servingBeamPosition.z],
+            [servingBeamInfo.beamPos.x, 0, servingBeamInfo.beamPos.z],
             [uavPosition.x, uavPosition.y, uavPosition.z],
           ]}
-          color={connectionColor}
-          lineWidth={handoverPhase === 'stable' ? 3 : 4}
+          color="#00ff00"
+          lineWidth={3}
           transparent
-          opacity={connectionOpacity}
+          opacity={0.8}
         />
       )}
 
-      {/* 換手狀態 */}
-      {isServingSatellite && handoverPhase !== 'stable' && (
+      {/* 當前服務的波束資訊 */}
+      {isServingUE && servingBeamInfo && (
         <Text
-          position={[position.x, position.y + 55, position.z]}
-          fontSize={12}
-          color={connectionColor}
+          position={[satPos[0], satPos[1] + 55, satPos[2]]}
+          fontSize={10}
+          color="#00ff00"
           anchorX="center"
           anchorY="middle"
           outlineWidth={1}
           outlineColor="#000000"
         >
-          {handoverPhase === 'preparation' ? `B${previousBeamId} → B${uavBeamId}` :
-           handoverPhase === 'switching' ? 'Switching...' :
-           `Connected B${uavBeamId}`}
+          {`B${servingBeamInfo.beamId} | RSRP: ${servingBeamInfo.rsrp.toFixed(1)} dBm`}
         </Text>
       )}
     </group>
   );
 }
 
+// ============================================================
+// 主組件
+// ============================================================
+
 export interface BeamHoppingDemoProps {
   uavPosition: THREE.Vector3;
+  /** 時間速度倍率 */
+  timeSpeed?: number;
+  /** 編排衛星數量 */
+  scriptedSatelliteCount?: number;
+  /** 編排衛星間隔（秒）*/
+  scriptedInterval?: number;
   /** Wide beam 半徑 */
   wideBeamRadius?: number;
+  /** 衛星高度 */
+  satelliteHeight?: number;
 }
 
 /**
  * Beam Hopping 展示場景
  *
- * 多顆衛星緩慢移動，展示 intra-satellite beam handover
+ * 混合模式：
+ * 1. 背景衛星：使用真實軌道數據（無波束，自然移動）
+ * 2. 展示衛星：編排軌跡經過 UE（有波束，展示 handover）
  */
 export function BeamHoppingDemo({
   uavPosition,
+  timeSpeed = 0.6,
+  scriptedSatelliteCount = 4,
+  scriptedInterval = 15,  // 每 15 秒一顆衛星經過
   wideBeamRadius = 180,
+  satelliteHeight = 400,
 }: BeamHoppingDemoProps) {
-  const [handoverPhase, setHandoverPhase] = useState<HandoverPhase>('stable');
+  const [calculator] = useState(() => new SatelliteOrbitCalculator());
+  const [isLoaded, setIsLoaded] = useState(false);
+  const elapsedTimeRef = useRef(0);
 
-  const handleHandoverState = React.useCallback((satelliteId: string, phase: HandoverPhase) => {
-    setHandoverPhase(phase);
-  }, []);
+  const { scene } = useGLTF(SATELLITE_MODEL_PATH);
 
-  // 計算每顆衛星到 UAV 的距離，決定誰是服務衛星
-  const [satelliteDistances, setSatelliteDistances] = useState<Map<string, number>>(new Map());
+  // 背景衛星位置（真實軌道）
+  const [backgroundSatellites, setBackgroundSatellites] = useState<Map<string, THREE.Vector3>>(new Map());
 
-  // 更新距離（由子組件觸發或定期更新）
-  const updateDistances = React.useCallback(() => {
-    // 這裡簡化處理，第一顆衛星為服務衛星
-  }, []);
+  // 編排的衛星
+  const scriptedSatellites = useMemo(
+    () => generateScriptedSatellites(uavPosition, scriptedSatelliteCount, scriptedInterval, satelliteHeight),
+    [uavPosition, scriptedSatelliteCount, scriptedInterval, satelliteHeight]
+  );
 
-  // 狀態顏色
-  const hasHandoverInProgress = handoverPhase !== 'stable';
-  const statusColor = hasHandoverInProgress ? '#ffaa00' : '#00ff00';
-  const statusText = hasHandoverInProgress
-    ? 'Beam Handover in Progress...'
-    : 'Connected';
+  // 編排衛星的當前位置（需要 state 來觸發波束系統重新渲染）
+  const [scriptedPositions, setScriptedPositions] = useState<Map<string, THREE.Vector3>>(new Map());
+  const scriptedPositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
+
+  // 已激活的衛星（顯示波束，直到衛星消失）- 用 ref 追蹤，只在改變時更新 state
+  const activatedSatellitesRef = useRef<Set<string>>(new Set());
+  const [activatedSatellites, setActivatedSatellites] = useState<Set<string>>(new Set());
+
+  // 當前服務 UE 的衛星 ID - 用 ref 追蹤，只在改變時更新 state
+  const servingScriptedIdRef = useRef<string | null>(null);
+  const [servingScriptedId, setServingScriptedId] = useState<string | null>(null);
+
+  // 每顆衛星當前服務的波束 ID（用於 A3 換手判斷）
+  const [servingBeamIds, setServingBeamIds] = useState<Map<string, number>>(new Map());
+
+  // 載入真實軌道數據（背景用）
+  useEffect(() => {
+    calculator
+      .loadTimeseries(ORBIT_DATA_URL)
+      .then(() => {
+        setIsLoaded(true);
+        console.log('✅ Beam Hopping Demo 載入完成');
+        console.log(`   編排衛星: ${scriptedSatelliteCount} 顆`);
+        console.log(`   間隔: ${scriptedInterval} 秒`);
+      })
+      .catch((err) => {
+        console.error('❌ 軌道數據載入失敗:', err);
+        // 即使真實數據載入失敗，編排衛星仍可運作
+        setIsLoaded(true);
+      });
+  }, [calculator, scriptedSatelliteCount, scriptedInterval]);
+
+  // 每幀更新（使用 ref 避免不必要的 re-render）
+  useFrame((_, delta) => {
+    if (!isLoaded) return;
+
+    elapsedTimeRef.current += delta * timeSpeed;
+    const currentTime = elapsedTimeRef.current;
+
+    // 循環時間（所有編排衛星完成一輪後重新開始）
+    const totalCycleDuration = scriptedSatelliteCount * scriptedInterval;
+    const cycleTime = currentTime % totalCycleDuration;
+
+    // 更新背景衛星位置（這個需要 state 因為要觸發背景衛星渲染）
+    const bgSatellites = calculator.getVisibleSatellites(currentTime, 1);
+    setBackgroundSatellites(bgSatellites);
+
+    // 更新編排衛星位置（存入 ref，不觸發 re-render）
+    const newPositions = new Map<string, THREE.Vector3>();
+    scriptedSatellites.forEach((sat) => {
+      const pos = getScriptedSatellitePosition(sat, cycleTime);
+      if (pos) {
+        newPositions.set(sat.id, pos);
+      }
+    });
+    scriptedPositionsRef.current = newPositions;
+    setScriptedPositions(newPositions);
+
+    // 波束覆蓋半徑
+    const beamCoverageRadius = DEFAULT_BEAM_CONFIG.cellSpacing + DEFAULT_BEAM_CONFIG.coneRadiusBottom;
+    // 波束激活距離（更早顯示波束）
+    const beamActivationDistance = beamCoverageRadius * 2.5;
+
+    // 使用 ref 追蹤激活衛星
+    const currentActivated = activatedSatellitesRef.current;
+    let activatedChanged = false;
+
+    // 清理已消失的衛星
+    currentActivated.forEach((satId) => {
+      if (!newPositions.has(satId)) {
+        currentActivated.delete(satId);
+        activatedChanged = true;
+        console.log(`🛰️ 衛星 ${satId} 已消失，波束移除`);
+      }
+    });
+
+    // 檢查每顆編排衛星，更新激活狀態（只考慮會經過 UE 的衛星）
+    const coveringSatellites: { id: string; groundDist: number }[] = [];
+
+    for (const sat of scriptedSatellites) {
+      // 環境衛星不顯示波束，跳過
+      if (!sat.passesOverUE) continue;
+
+      const pos = newPositions.get(sat.id);
+      if (!pos) continue;
+
+      // 計算衛星地面投影到 UE 的距離
+      const groundDist = Math.sqrt(
+        Math.pow(pos.x - uavPosition.x, 2) +
+        Math.pow(pos.z - uavPosition.z, 2)
+      );
+
+      const isOverUE = groundDist <= beamCoverageRadius;
+
+      // 激活條件：距離夠近就激活（更早顯示波束）
+      if (groundDist < beamActivationDistance) {
+        if (!currentActivated.has(sat.id)) {
+          currentActivated.add(sat.id);
+          activatedChanged = true;
+          console.log(`🛰️ 衛星 ${sat.id} 波束激活 (距離: ${groundDist.toFixed(0)})`);
+        }
+      }
+
+      // 記錄正在覆蓋 UE 的衛星（用於連線判斷）
+      if (isOverUE) {
+        coveringSatellites.push({ id: sat.id, groundDist });
+      }
+    }
+
+    // ===== 換手邏輯：維持連接直到離開覆蓋（加入遲滯邊界） =====
+    const currentServingId = servingScriptedIdRef.current;
+    let newServingId: string | null = currentServingId;
+
+    // 遲滯邊界：當前服務衛星有 20% 額外容忍距離
+    const hysteresisMargin = 1.2;
+
+    // 找到當前服務衛星的距離
+    let currentServingDist = Infinity;
+    if (currentServingId) {
+      const pos = newPositions.get(currentServingId);
+      if (pos) {
+        currentServingDist = Math.sqrt(
+          Math.pow(pos.x - uavPosition.x, 2) +
+          Math.pow(pos.z - uavPosition.z, 2)
+        );
+      }
+    }
+
+    // 當前衛星是否還在覆蓋範圍（使用遲滯邊界）
+    const currentStillCovering = currentServingId && currentServingDist <= beamCoverageRadius * hysteresisMargin;
+
+    if (currentStillCovering) {
+      // 當前衛星還在遲滯範圍內，維持連接（不管有沒有其他衛星更近）
+      newServingId = currentServingId;
+    } else if (coveringSatellites.length > 0) {
+      // 當前衛星離開了，或沒有服務衛星 → 選擇最近的
+      coveringSatellites.sort((a, b) => a.groundDist - b.groundDist);
+      const newSat = coveringSatellites[0];
+      if (newSat.id !== currentServingId) {
+        console.log(`🔄 換手: ${currentServingId || '(無)'} → ${newSat.id}`);
+      }
+      newServingId = newSat.id;
+    } else {
+      // 沒有衛星覆蓋 UE
+      if (currentServingId) {
+        console.log(`📡 ${currentServingId} 離開覆蓋，等待下一顆衛星...`);
+      }
+      newServingId = null;
+    }
+
+    // 只在值真正改變時才更新 state（避免不必要的 re-render）
+    if (activatedChanged) {
+      setActivatedSatellites(new Set(currentActivated));
+    }
+
+    if (newServingId !== servingScriptedIdRef.current) {
+      servingScriptedIdRef.current = newServingId;
+      setServingScriptedId(newServingId);
+    }
+  });
+
+  // 衛星模型（背景 + 編排）
+  const allSatelliteModels = useMemo(() => {
+    const models: { id: string; model: THREE.Group }[] = [];
+
+    // 背景衛星模型
+    if (isLoaded) {
+      const bgIds = calculator.getAllSatelliteIds().slice(0, 20); // 只取前 20 顆作為背景
+      bgIds.forEach((id) => {
+        models.push({ id: `bg-${id}`, model: scene.clone(true) });
+      });
+    }
+
+    // 編排衛星模型
+    scriptedSatellites.forEach((sat) => {
+      models.push({ id: sat.id, model: scene.clone(true) });
+    });
+
+    return models;
+  }, [isLoaded, calculator, scene, scriptedSatellites]);
+
+  const meshesRef = useRef<Map<string, THREE.Group>>(new Map());
+
+  // 更新衛星模型位置
+  useFrame(() => {
+    meshesRef.current.forEach((mesh, modelId) => {
+      // 背景衛星
+      if (modelId.startsWith('bg-')) {
+        const satId = modelId.replace('bg-', '');
+        const pos = backgroundSatellites.get(satId);
+        if (pos) {
+          mesh.position.set(pos.x, pos.y, pos.z);
+          mesh.visible = true;
+          mesh.scale.setScalar(4);
+        } else {
+          mesh.visible = false;
+        }
+      }
+      // 編排衛星
+      else {
+        const pos = scriptedPositionsRef.current.get(modelId);
+        if (pos) {
+          mesh.position.set(pos.x, pos.y, pos.z);
+          mesh.visible = true;
+          mesh.scale.setScalar(servingScriptedIdRef.current === modelId ? 8 : 6);
+        } else {
+          mesh.visible = false;
+        }
+      }
+    });
+  });
+
+  // 狀態計算
+  const isBeingServed = servingScriptedId !== null;
+
+  const statusColor = useMemo(() => {
+    return isBeingServed ? '#00ff00' : '#ff3300';
+  }, [isBeingServed]);
+
+  const statusText = useMemo(() => {
+    if (isBeingServed && servingScriptedId) {
+      return `Connected: ${servingScriptedId}`;
+    }
+    return 'Waiting for satellite...';
+  }, [isBeingServed, servingScriptedId]);
+
+  if (!isLoaded) {
+    return null;
+  }
 
   return (
     <group>
-      {/* 多顆移動衛星 */}
-      {SATELLITE_CONFIGS.map((config, index) => (
-        <MovingSatellite
-          key={config.id}
-          config={config}
-          uavPosition={uavPosition}
-          wideBeamRadius={wideBeamRadius}
-          isServingSatellite={index === 0} // 第一顆為服務衛星
-          onHandoverState={index === 0 ? handleHandoverState : undefined}
-        />
+      {/* 衛星模型 */}
+      {allSatelliteModels.map(({ id, model }) => (
+        <group
+          key={id}
+          ref={(ref) => {
+            if (ref) {
+              meshesRef.current.set(id, ref);
+            }
+          }}
+          scale={5}
+          visible={false}
+        >
+          <primitive object={model} />
+        </group>
       ))}
+
+      {/* 編排衛星的波束系統（只有會經過 UE 的衛星才顯示波束） */}
+      {scriptedSatellites
+        .filter(sat => sat.passesOverUE)
+        .map((sat) => {
+          const pos = scriptedPositions.get(sat.id);
+          if (!pos) return null;
+
+          const showBeams = activatedSatellites.has(sat.id);
+          const isServingUE = servingScriptedId === sat.id;
+          const currentServingBeamId = servingBeamIds.get(sat.id) ?? null;
+
+          return (
+            <ScriptedSatelliteBeamSystem
+              key={sat.id}
+              satellite={sat}
+              position={pos}
+              uavPosition={uavPosition}
+              showBeams={showBeams}
+              isServingUE={isServingUE}
+              wideBeamRadius={wideBeamRadius}
+              currentServingBeamId={currentServingBeamId}
+              onServingBeamChange={(beamInfo) => {
+                if (beamInfo) {
+                  setServingBeamIds(prev => new Map(prev).set(sat.id, beamInfo.beamId));
+                }
+              }}
+            />
+          );
+        })}
 
       {/* UAV 狀態指示環 */}
       <mesh
@@ -471,22 +907,6 @@ export function BeamHoppingDemo({
           side={THREE.DoubleSide}
         />
       </mesh>
-
-      {/* 換手中外圈 */}
-      {hasHandoverInProgress && (
-        <mesh
-          position={[uavPosition.x, 1, uavPosition.z]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <ringGeometry args={[22, 26, 32]} />
-          <meshBasicMaterial
-            color="#ffaa00"
-            transparent
-            opacity={0.5}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      )}
 
       {/* 狀態文字 */}
       <Text
