@@ -84,13 +84,11 @@ function createHexagonBorderPoints(radius: number): [number, number, number][] {
 interface EarthFixedCellProps {
   cell: EarthFixedCell;
   showLabel?: boolean;
-  showQueueIndicator?: boolean;
 }
 
 function EarthFixedCellComponent({
   cell,
   showLabel = true,
-  showQueueIndicator = true,
 }: EarthFixedCellProps) {
   // 六邊形幾何
   const hexGeometry = useMemo(() => createHexagonGeometry(cell.radius), [cell.radius]);
@@ -101,13 +99,6 @@ function EarthFixedCellComponent({
   const baseColor = cell.isServed && cell.servingBeamColor 
     ? cell.servingBeamColor 
     : frequencyColor;
-  
-  // Data Queue 狀態顏色
-  const queueStatusColor = cell.dataQueue > 1000000 
-    ? '#ff4444'  // 高負載：紅色
-    : cell.dataQueue > 500000 
-      ? '#ffaa00'  // 中負載：橙色
-      : '#44ff44'; // 低負載：綠色
   
   // 填充透明度：被服務時更亮
   const fillOpacity = cell.isServed ? 0.4 : 0.2;
@@ -157,21 +148,6 @@ function EarthFixedCellComponent({
         >
           {`C${cell.id}`}
         </Text>
-      )}
-      
-      {/* Data Queue 指標 */}
-      {showQueueIndicator && cell.dataQueue > 0 && (
-        <group position={[cell.radius * 0.6, 5, -cell.radius * 0.6]}>
-          {/* 小圓點表示 queue 狀態 */}
-          <mesh>
-            <sphereGeometry args={[Math.min(8, 3 + cell.dataQueue / 200000), 16, 16]} />
-            <meshBasicMaterial 
-              color={queueStatusColor} 
-              transparent 
-              opacity={0.9}
-            />
-          </mesh>
-        </group>
       )}
     </group>
   );
@@ -259,13 +235,11 @@ export function generateEarthFixedCells(config: {
 interface EarthFixedCellsProps {
   cells: EarthFixedCell[];
   showLabels?: boolean;
-  showQueueIndicators?: boolean;
 }
 
 export function EarthFixedCells({
   cells,
   showLabels = true,
-  showQueueIndicators = true,
 }: EarthFixedCellsProps) {
   return (
     <group>
@@ -274,7 +248,6 @@ export function EarthFixedCells({
           key={cell.id}
           cell={cell}
           showLabel={showLabels}
-          showQueueIndicator={showQueueIndicators}
         />
       ))}
     </group>

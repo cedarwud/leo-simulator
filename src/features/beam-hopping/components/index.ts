@@ -9,3 +9,5 @@ export { BeamLabel, BeamLabels } from './BeamLabel';
 export { WideBeam } from './WideBeam';
 export { SatelliteUnit, DistantSatelliteMarker } from './SatelliteUnit';
 export { MovingSatelliteBeams } from './MovingSatelliteBeams';
+export { MultiUEManager, DEFAULT_UE_CONFIGS } from './MultiUEManager';
+export type { UEConfig, UEHandoverState } from './MultiUEManager';
