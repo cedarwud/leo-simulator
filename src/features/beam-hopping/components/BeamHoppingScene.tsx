@@ -1,10 +1,11 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState, useMemo, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { NTPUScene } from '@/components/scene/NTPUScene';
 import { UAV } from '@/components/scene/UAV';
-import { BeamHoppingDemo, BeamManagementStats } from './BeamHoppingDemo';
+import { EarthFixedCells, generateEarthFixedCells, DEFAULT_CELL_CONFIG, EarthFixedCell } from './EarthFixedCells';
+import { BeamHoppingSystem, BeamManagementStats } from './BeamHoppingSystem';
 
 // Loading indicator
 function Loader() {
@@ -30,18 +31,43 @@ interface SceneContentProps {
 
 function SceneContent({ onStatsUpdate }: SceneContentProps) {
   // UAV 位置（場景中心）
-  const uavPosition = new THREE.Vector3(0, 10, 0);
+  const uavPosition = useMemo(() => new THREE.Vector3(0, 10, 0), []);
+
+  // 生成 Earth-Fixed Cells（4x5 六邊形網格）
+  const initialCells = useMemo(() => {
+    return generateEarthFixedCells(DEFAULT_CELL_CONFIG);
+  }, []);
+  
+  // Cells 狀態（會被 BeamHoppingSystem 更新）
+  const [cells, setCells] = useState<EarthFixedCell[]>(initialCells);
+  
+  // Cells 更新回調
+  const handleCellsUpdate = useCallback((updatedCells: EarthFixedCell[]) => {
+    setCells(updatedCells);
+  }, []);
 
   return (
     <>
       {/* NTPU 場景 */}
       <NTPUScene />
 
+      {/* Earth-Fixed Cells（固定在地面的服務區域） */}
+      <EarthFixedCells 
+        cells={cells} 
+        showLabels={true}
+        showQueueIndicators={true}
+      />
+
       {/* UAV (作為 UE) */}
       <UAV position={[uavPosition.x, uavPosition.y, uavPosition.z]} scale={10} />
 
-      {/* Beam Hopping 展示 */}
-      <BeamHoppingDemo uavPosition={uavPosition} onStatsUpdate={onStatsUpdate} />
+      {/* 新的 Beam Hopping 系統 */}
+      <BeamHoppingSystem
+        cells={initialCells}
+        uePosition={uavPosition}
+        onStatsUpdate={onStatsUpdate}
+        onCellsUpdate={handleCellsUpdate}
+      />
     </>
   );
 }

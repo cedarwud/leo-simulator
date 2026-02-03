@@ -1,6 +1,7 @@
 export { BeamHoppingScene } from './BeamHoppingScene';
 export { BeamHoppingDemo } from './BeamHoppingDemo';
-export type { BeamManagementStats } from './BeamHoppingDemo';
+export { BeamHoppingSystem } from './BeamHoppingSystem';
+export type { BeamManagementStats } from './BeamHoppingSystem';
 export { BeamCone, BeamCones } from './BeamCone';
 export { BeamConnection, ActiveBeamConnection } from './BeamConnection';
 export { GroundCell, GroundCells } from './GroundCells';

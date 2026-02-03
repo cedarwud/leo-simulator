@@ -1,7 +1,7 @@
 import React from 'react';
-import { Satellite, Radio, Zap, Activity, ArrowRightLeft, Clock } from 'lucide-react';
+import { Satellite, Radio, Zap, Activity, ArrowRightLeft, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
 import { FRF3_COLORS } from '../types';
-import { BeamManagementStats } from '../components/BeamHoppingDemo';
+import { BeamManagementStats } from '../components/BeamHoppingSystem';
 import { ENERGY_CONFIG } from '@/config/energy.config';
 
 interface BeamHoppingSidebarProps {
@@ -252,6 +252,179 @@ export function BeamHoppingSidebar({
             </span>
           </div>
         </div>
+
+        {/* 換手詳細資訊 */}
+        {stats?.handoverDetails && (
+          <div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              marginBottom: '14px',
+            }}>
+              <TrendingUp size={20} color="#ff66aa" />
+              <div style={{
+                fontSize: '17px',
+                color: '#ffffff',
+                fontWeight: '600',
+              }}>
+                Handover Details
+              </div>
+            </div>
+
+            {/* UE Cell 資訊 */}
+            <div style={{
+              padding: '14px',
+              backgroundColor: 'rgba(255, 102, 170, 0.1)',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 102, 170, 0.25)',
+              marginBottom: '10px',
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '10px',
+              }}>
+                <span style={{ fontSize: '14px', color: '#cccccc' }}>UE Location</span>
+                <span style={{
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#ff66aa',
+                  fontFamily: 'monospace',
+                }}>
+                  Cell {stats.handoverDetails.ueCellId ?? '-'}
+                </span>
+              </div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '10px',
+              }}>
+                <span style={{ fontSize: '14px', color: '#cccccc' }}>Serving Beam</span>
+                <span style={{
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#00ff88',
+                  fontFamily: 'monospace',
+                }}>
+                  B{stats.handoverDetails.servingBeamId ?? '-'}
+                </span>
+              </div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <span style={{ fontSize: '14px', color: '#cccccc' }}>Next Beam (predicted)</span>
+                <span style={{
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#ffaa00',
+                  fontFamily: 'monospace',
+                }}>
+                  {stats.handoverDetails.predictedNextBeam 
+                    ? `B${stats.handoverDetails.predictedNextBeam}`
+                    : '-'}
+                </span>
+              </div>
+            </div>
+
+            {/* 換手倒計時 */}
+            {stats.handoverDetails.timeToHandover !== null && (
+              <div style={{
+                padding: '12px 14px',
+                backgroundColor: stats.handoverDetails.timeToHandover < 3 
+                  ? 'rgba(255, 68, 68, 0.15)' 
+                  : 'rgba(255, 170, 0, 0.1)',
+                borderRadius: '8px',
+                border: `1px solid ${stats.handoverDetails.timeToHandover < 3 
+                  ? 'rgba(255, 68, 68, 0.4)' 
+                  : 'rgba(255, 170, 0, 0.25)'}`,
+                marginBottom: '10px',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '8px',
+                }}>
+                  <AlertTriangle 
+                    size={16} 
+                    color={stats.handoverDetails.timeToHandover < 3 ? '#ff4444' : '#ffaa00'} 
+                  />
+                  <span style={{ 
+                    fontSize: '14px', 
+                    color: stats.handoverDetails.timeToHandover < 3 ? '#ff6666' : '#ffcc66',
+                    fontWeight: '500',
+                  }}>
+                    {stats.handoverDetails.timeToHandover < 3 
+                      ? 'Handover Imminent!' 
+                      : 'Approaching Handover'}
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: '24px',
+                  fontWeight: '700',
+                  color: stats.handoverDetails.timeToHandover < 3 ? '#ff4444' : '#ffaa00',
+                  fontFamily: 'monospace',
+                  textAlign: 'center',
+                }}>
+                  ~{stats.handoverDetails.timeToHandover.toFixed(1)}s
+                </div>
+              </div>
+            )}
+
+            {/* 最近換手歷史 */}
+            {stats.handoverDetails.recentHandovers.length > 0 && (
+              <div style={{
+                padding: '12px',
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+              }}>
+                <div style={{ 
+                  fontSize: '13px', 
+                  color: '#888888', 
+                  marginBottom: '8px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}>
+                  Recent Handovers
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {stats.handoverDetails.recentHandovers.slice(-3).reverse().map((ho, idx) => (
+                    <div 
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '6px 8px',
+                        backgroundColor: ho.type === 'satellite' 
+                          ? 'rgba(255, 170, 0, 0.1)' 
+                          : 'rgba(0, 170, 255, 0.1)',
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                      }}
+                    >
+                      <span style={{ 
+                        color: ho.type === 'satellite' ? '#ffaa00' : '#00aaff',
+                        fontWeight: '500',
+                      }}>
+                        {ho.type === 'satellite' ? '🛰️' : '📶'} {ho.from} → {ho.to}
+                      </span>
+                      <span style={{ color: '#666666', fontSize: '11px' }}>
+                        {Math.round((Date.now() - ho.time) / 1000)}s ago
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 能源效率 */}
         <div>
