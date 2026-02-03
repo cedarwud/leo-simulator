@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Line, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -7,11 +7,39 @@ import { Beam, DEFAULT_BEAM_CONFIG, FRF3_COLORS, DEFAULT_SCHEDULE } from '../typ
 import { BeamCones } from './BeamCone';
 import { GroundCells } from './GroundCells';
 import { WideBeam } from './WideBeam';
+import { ENERGY_CONFIG } from '@/config/energy.config';
 
 const SATELLITE_MODEL_PATH = '/models/sat.glb';
 const ORBIT_DATA_URL = '/data/satellite-timeseries.json';
 
 useGLTF.preload(SATELLITE_MODEL_PATH);
+
+// ============================================================
+// Beam Management 統計數據
+// ============================================================
+
+export interface BeamManagementStats {
+  /** 當前服務的衛星 ID */
+  currentSatelliteId: string | null;
+  /** 當前服務的波束 ID */
+  currentBeamId: number | null;
+  /** 當前 RSRP (dBm) */
+  currentRSRP: number | null;
+  /** 波束換手次數（intra-satellite） */
+  beamHandovers: number;
+  /** 衛星換手次數（inter-satellite） */
+  satelliteHandovers: number;
+  /** 總換手次數 */
+  totalHandovers: number;
+  /** 運行時間（秒） */
+  elapsedTime: number;
+  /** 累積能耗（焦耳） */
+  energyConsumption: number;
+  /** 每秒平均能耗 */
+  averageEnergyPerSecond: number;
+  /** 當前活躍的波束 ID 列表 */
+  activeBeams: number[];
+}
 
 // ============================================================
 // 編排的衛星系統（展示 beam handover）
@@ -584,6 +612,8 @@ export interface BeamHoppingDemoProps {
   wideBeamRadius?: number;
   /** 衛星高度 */
   satelliteHeight?: number;
+  /** 統計數據更新回調 */
+  onStatsUpdate?: (stats: BeamManagementStats) => void;
 }
 
 /**
@@ -600,6 +630,7 @@ export function BeamHoppingDemo({
   scriptedInterval = 15,  // 每 15 秒一顆衛星經過
   wideBeamRadius = 180,
   satelliteHeight = 400,
+  onStatsUpdate,
 }: BeamHoppingDemoProps) {
   const [calculator] = useState(() => new SatelliteOrbitCalculator());
   const [isLoaded, setIsLoaded] = useState(false);
@@ -628,8 +659,78 @@ export function BeamHoppingDemo({
   const servingScriptedIdRef = useRef<string | null>(null);
   const [servingScriptedId, setServingScriptedId] = useState<string | null>(null);
 
+  // ===== 統計數據追蹤 =====
+  // 初始化模擬數據：假設已經運行了一段時間
+  const INITIAL_ELAPSED_SECONDS = 47;  // 模擬已運行 47 秒
+  const INITIAL_BEAM_HANDOVERS = 8;    // 已發生 8 次波束換手
+  const INITIAL_SAT_HANDOVERS = 2;     // 已發生 2 次衛星換手
+
+  const beamHandoversRef = useRef(INITIAL_BEAM_HANDOVERS);
+  const satelliteHandoversRef = useRef(INITIAL_SAT_HANDOVERS);
+  const lastServingBeamIdRef = useRef<number | null>(null);
+  const lastServingSatelliteIdRef = useRef<string | null>(null);
+  const currentRSRPRef = useRef<number | null>(null);
+  const currentBeamIdRef = useRef<number | null>(null);
+  const activeBeamsRef = useRef<number[]>([]);
+  const startTimeRef = useRef<number>(Date.now() - INITIAL_ELAPSED_SECONDS * 1000);
+
   // 每顆衛星當前服務的波束 ID（用於 A3 換手判斷）
   const [servingBeamIds, setServingBeamIds] = useState<Map<string, number>>(new Map());
+
+  // 更新統計數據的回調
+  const updateStats = useCallback(() => {
+    if (!onStatsUpdate) return;
+
+    const elapsedTime = (Date.now() - startTimeRef.current) / 1000;
+    const totalHandovers = beamHandoversRef.current + satelliteHandoversRef.current;
+    const energyConsumption = totalHandovers * ENERGY_CONFIG.ENERGY_PER_HANDOVER;
+
+    onStatsUpdate({
+      currentSatelliteId: servingScriptedIdRef.current,
+      currentBeamId: currentBeamIdRef.current,
+      currentRSRP: currentRSRPRef.current,
+      beamHandovers: beamHandoversRef.current,
+      satelliteHandovers: satelliteHandoversRef.current,
+      totalHandovers,
+      elapsedTime,
+      energyConsumption,
+      averageEnergyPerSecond: elapsedTime > 0 ? energyConsumption / elapsedTime : 0,
+      activeBeams: activeBeamsRef.current,
+    });
+  }, [onStatsUpdate]);
+
+  // 處理波束變更（來自 ScriptedSatelliteBeamSystem 的回調）
+  const handleServingBeamChange = useCallback((satId: string, beamInfo: BeamRSRPInfo | null) => {
+    if (beamInfo) {
+      // 更新當前服務資訊
+      const prevBeamId = currentBeamIdRef.current;
+      const prevSatId = lastServingSatelliteIdRef.current;
+
+      currentBeamIdRef.current = beamInfo.beamId;
+      currentRSRPRef.current = beamInfo.rsrp;
+
+      // 檢測波束換手（同一顆衛星內）
+      if (prevSatId === satId && prevBeamId !== null && prevBeamId !== beamInfo.beamId) {
+        beamHandoversRef.current += 1;
+        console.log(`📊 Beam handover #${beamHandoversRef.current}: B${prevBeamId} → B${beamInfo.beamId}`);
+      }
+
+      // 檢測衛星換手
+      if (prevSatId !== null && prevSatId !== satId) {
+        satelliteHandoversRef.current += 1;
+        console.log(`📊 Satellite handover #${satelliteHandoversRef.current}: ${prevSatId} → ${satId}`);
+      }
+
+      lastServingSatelliteIdRef.current = satId;
+      lastServingBeamIdRef.current = beamInfo.beamId;
+
+      // 更新衛星的服務波束
+      setServingBeamIds(prev => new Map(prev).set(satId, beamInfo.beamId));
+
+      // 更新統計
+      updateStats();
+    }
+  }, [updateStats]);
 
   // 載入真實軌道數據（背景用）
   useEffect(() => {
@@ -775,6 +876,9 @@ export function BeamHoppingDemo({
       servingScriptedIdRef.current = newServingId;
       setServingScriptedId(newServingId);
     }
+
+    // 定期更新統計數據（每幀）
+    updateStats();
   });
 
   // 衛星模型（背景 + 編排）
@@ -886,9 +990,7 @@ export function BeamHoppingDemo({
               wideBeamRadius={wideBeamRadius}
               currentServingBeamId={currentServingBeamId}
               onServingBeamChange={(beamInfo) => {
-                if (beamInfo) {
-                  setServingBeamIds(prev => new Map(prev).set(sat.id, beamInfo.beamId));
-                }
+                handleServingBeamChange(sat.id, beamInfo);
               }}
             />
           );

@@ -1,33 +1,25 @@
 import React from 'react';
-import { Play, Pause, SkipBack, SkipForward, RotateCcw } from 'lucide-react';
-import { DEFAULT_SCHEDULE, FRF3_COLORS } from '../types';
+import { Satellite, Radio, Zap, Activity, ArrowRightLeft, Clock } from 'lucide-react';
+import { FRF3_COLORS } from '../types';
+import { BeamManagementStats } from '../components/BeamHoppingDemo';
+import { ENERGY_CONFIG } from '@/config/energy.config';
 
 interface BeamHoppingSidebarProps {
-  currentSlotIndex: number;
-  isRunning: boolean;
-  progress: number;
-  activeBeams: number[];
-  speed: number;
-  onToggle: () => void;
-  onReset: () => void;
-  onNextSlot: () => void;
-  onPrevSlot: () => void;
-  onSpeedChange: (speed: number) => void;
+  /** Beam management 統計數據 */
+  stats?: BeamManagementStats;
 }
 
 export function BeamHoppingSidebar({
-  currentSlotIndex,
-  isRunning,
-  progress,
-  activeBeams,
-  speed,
-  onToggle,
-  onReset,
-  onNextSlot,
-  onPrevSlot,
-  onSpeedChange,
+  stats,
 }: BeamHoppingSidebarProps) {
   const colors = Object.values(FRF3_COLORS);
+
+  // 格式化時間 (秒 → MM:SS)
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div style={{
@@ -36,7 +28,7 @@ export function BeamHoppingSidebar({
       left: 0,
       height: '100%',
       width: '320px',
-      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      backgroundColor: 'rgba(0, 0, 0, 0.92)',
       backdropFilter: 'blur(10px)',
       borderRight: '1px solid rgba(255, 255, 255, 0.15)',
       overflow: 'hidden',
@@ -51,15 +43,15 @@ export function BeamHoppingSidebar({
       }}>
         <div style={{
           color: '#ffffff',
-          fontSize: '20px',
+          fontSize: '24px',
           fontWeight: '600',
           letterSpacing: '0.5px',
-          marginBottom: '8px',
+          marginBottom: '6px',
         }}>
-          Beam Hopping
+          Beam Management
         </div>
-        <div style={{ color: '#999999', fontSize: '13px' }}>
-          Multi-beam Time-Division Simulation
+        <div style={{ color: '#aaaaaa', fontSize: '15px' }}>
+          Intra-satellite Beam Handover
         </div>
       </div>
 
@@ -70,235 +62,314 @@ export function BeamHoppingSidebar({
         padding: '20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '20px',
+        gap: '24px',
       }}>
-        {/* 當前時隙 */}
+        {/* 連線狀態 */}
         <div>
           <div style={{
-            fontSize: '15px',
-            color: '#ffffff',
-            fontWeight: '600',
-            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            marginBottom: '14px',
           }}>
-            Current Time Slot
+            <Radio size={20} color={stats?.currentSatelliteId ? '#00ff88' : '#ff4444'} />
+            <div style={{
+              fontSize: '17px',
+              color: '#ffffff',
+              fontWeight: '600',
+            }}>
+              Connection Status
+            </div>
           </div>
           <div style={{
             padding: '16px',
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            borderRadius: '8px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            backgroundColor: stats?.currentSatelliteId
+              ? 'rgba(0, 255, 136, 0.08)'
+              : 'rgba(255, 68, 68, 0.08)',
+            borderRadius: '10px',
+            border: `1px solid ${stats?.currentSatelliteId
+              ? 'rgba(0, 255, 136, 0.25)'
+              : 'rgba(255, 68, 68, 0.25)'}`,
           }}>
+            {/* 衛星連線 */}
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               marginBottom: '12px',
             }}>
-              <span style={{ color: '#999999', fontSize: '14px' }}>Slot</span>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}>
+                <Satellite size={18} color="#cccccc" />
+                <span style={{ fontSize: '15px', color: '#cccccc' }}>Satellite</span>
+              </div>
               <span style={{
-                color: '#00ff88',
-                fontSize: '24px',
+                fontSize: '16px',
                 fontWeight: '600',
+                color: stats?.currentSatelliteId ? '#00ff88' : '#ff4444',
                 fontFamily: 'monospace',
               }}>
-                {currentSlotIndex + 1} / {DEFAULT_SCHEDULE.length}
+                {stats?.currentSatelliteId || 'No Signal'}
               </span>
             </div>
 
-            {/* 進度條 */}
+            {/* 波束連線 */}
             <div style={{
-              height: '6px',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              borderRadius: '3px',
-              overflow: 'hidden',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '12px',
             }}>
               <div style={{
-                height: '100%',
-                width: `${progress * 100}%`,
-                backgroundColor: '#00ff88',
-                borderRadius: '3px',
-                transition: 'width 0.1s linear',
-              }} />
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}>
+                <Activity size={18} color="#cccccc" />
+                <span style={{ fontSize: '15px', color: '#cccccc' }}>Serving Beam</span>
+              </div>
+              <span style={{
+                fontSize: '16px',
+                fontWeight: '600',
+                color: stats?.currentBeamId != null ? '#00ff88' : '#888888',
+                fontFamily: 'monospace',
+              }}>
+                {stats?.currentBeamId != null ? `B${stats.currentBeamId}` : '-'}
+              </span>
+            </div>
+
+            {/* RSRP */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <span style={{ fontSize: '15px', color: '#cccccc' }}>RSRP</span>
+              <span style={{
+                fontSize: '16px',
+                fontWeight: '600',
+                color: stats?.currentRSRP != null ? '#00aaff' : '#888888',
+                fontFamily: 'monospace',
+              }}>
+                {stats?.currentRSRP != null ? `${stats.currentRSRP.toFixed(1)} dBm` : '-'}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* 活躍波束 */}
+        {/* 換手統計 */}
         <div>
           <div style={{
-            fontSize: '15px',
-            color: '#ffffff',
-            fontWeight: '600',
-            marginBottom: '12px',
-          }}>
-            Active Beams
-          </div>
-          <div style={{
             display: 'flex',
-            flexWrap: 'wrap',
-            gap: '8px',
+            alignItems: 'center',
+            gap: '10px',
+            marginBottom: '14px',
           }}>
-            {[0, 1, 2, 3, 4, 5, 6].map((beamId) => {
-              const isActive = activeBeams.includes(beamId);
-              const colorIndex = [0, 1, 2, 1, 2, 0, 0][beamId];
-              const color = colors[colorIndex];
+            <ArrowRightLeft size={20} color="#00aaff" />
+            <div style={{
+              fontSize: '17px',
+              color: '#ffffff',
+              fontWeight: '600',
+            }}>
+              Handover Statistics
+            </div>
+          </div>
 
-              return (
-                <div
-                  key={beamId}
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '8px',
-                    backgroundColor: isActive ? `${color}33` : 'rgba(255, 255, 255, 0.05)',
-                    border: `2px solid ${isActive ? color : 'rgba(255, 255, 255, 0.1)'}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: isActive ? color : '#666666',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    transition: 'all 0.3s ease',
-                  }}
-                >
-                  B{beamId}
-                </div>
-              );
-            })}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '10px',
+          }}>
+            {/* 波束換手 */}
+            <div style={{
+              padding: '14px',
+              backgroundColor: 'rgba(0, 170, 255, 0.1)',
+              borderRadius: '10px',
+              border: '1px solid rgba(0, 170, 255, 0.25)',
+            }}>
+              <div style={{ fontSize: '14px', color: '#66ccff', marginBottom: '6px' }}>
+                Beam Handovers
+              </div>
+              <div style={{
+                fontSize: '32px',
+                fontWeight: '700',
+                color: '#00aaff',
+                fontFamily: 'monospace',
+              }}>
+                {stats?.beamHandovers ?? 0}
+              </div>
+            </div>
+
+            {/* 衛星換手 */}
+            <div style={{
+              padding: '14px',
+              backgroundColor: 'rgba(255, 170, 0, 0.1)',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 170, 0, 0.25)',
+            }}>
+              <div style={{ fontSize: '14px', color: '#ffcc66', marginBottom: '6px' }}>
+                Satellite Handovers
+              </div>
+              <div style={{
+                fontSize: '32px',
+                fontWeight: '700',
+                color: '#ffaa00',
+                fontFamily: 'monospace',
+              }}>
+                {stats?.satelliteHandovers ?? 0}
+              </div>
+            </div>
+          </div>
+
+          {/* 運行時間 */}
+          <div style={{
+            marginTop: '10px',
+            padding: '12px 14px',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            borderRadius: '8px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <Clock size={16} color="#cccccc" />
+              <span style={{ fontSize: '15px', color: '#cccccc' }}>Elapsed Time</span>
+            </div>
+            <span style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#ffffff',
+              fontFamily: 'monospace',
+            }}>
+              {formatTime(stats?.elapsedTime ?? 0)}
+            </span>
           </div>
         </div>
 
-        {/* 播放控制 */}
+        {/* 能源效率 */}
         <div>
           <div style={{
-            fontSize: '15px',
-            color: '#ffffff',
-            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            marginBottom: '14px',
+          }}>
+            <Zap size={20} color="#00ff88" />
+            <div style={{
+              fontSize: '17px',
+              color: '#ffffff',
+              fontWeight: '600',
+            }}>
+              Energy Consumption
+            </div>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '10px',
             marginBottom: '12px',
           }}>
-            Playback Control
+            {/* 累積能耗 */}
+            <div style={{
+              padding: '14px',
+              backgroundColor: 'rgba(0, 255, 136, 0.1)',
+              borderRadius: '10px',
+              border: '1px solid rgba(0, 255, 136, 0.25)',
+            }}>
+              <div style={{ fontSize: '14px', color: '#66ffaa', marginBottom: '6px' }}>
+                Total Energy
+              </div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '4px',
+              }}>
+                <span style={{
+                  fontSize: '28px',
+                  fontWeight: '700',
+                  color: '#00ff88',
+                  fontFamily: 'monospace',
+                }}>
+                  {(stats?.energyConsumption ?? 0).toFixed(1)}
+                </span>
+                <span style={{ fontSize: '15px', color: '#aaaaaa' }}>J</span>
+              </div>
+            </div>
+
+            {/* 換手頻率 */}
+            <div style={{
+              padding: '14px',
+              backgroundColor: 'rgba(0, 255, 136, 0.1)',
+              borderRadius: '10px',
+              border: '1px solid rgba(0, 255, 136, 0.25)',
+            }}>
+              <div style={{ fontSize: '14px', color: '#66ffaa', marginBottom: '6px' }}>
+                Handover Rate
+              </div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '4px',
+              }}>
+                <span style={{
+                  fontSize: '28px',
+                  fontWeight: '700',
+                  color: '#00ff88',
+                  fontFamily: 'monospace',
+                }}>
+                  {stats?.elapsedTime && stats.elapsedTime > 0
+                    ? ((stats.totalHandovers / stats.elapsedTime) * 60).toFixed(1)
+                    : '0.0'}
+                </span>
+                <span style={{ fontSize: '14px', color: '#aaaaaa' }}>/min</span>
+              </div>
+            </div>
           </div>
+
+          {/* 每次換手能耗 */}
           <div style={{
+            padding: '16px',
+            backgroundColor: 'rgba(0, 255, 136, 0.06)',
+            borderRadius: '10px',
+            border: '1px solid rgba(0, 255, 136, 0.15)',
             display: 'flex',
-            gap: '8px',
-            justifyContent: 'center',
+            justifyContent: 'space-between',
+            alignItems: 'center',
           }}>
-            <button
-              onClick={onPrevSlot}
-              style={{
-                padding: '12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
-                color: '#ffffff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <SkipBack size={20} />
-            </button>
-
-            <button
-              onClick={onToggle}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: isRunning ? 'rgba(255, 136, 0, 0.2)' : 'rgba(0, 255, 136, 0.2)',
-                border: `2px solid ${isRunning ? '#ff8800' : '#00ff88'}`,
-                borderRadius: '8px',
-                color: isRunning ? '#ff8800' : '#00ff88',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                fontWeight: '600',
-              }}
-            >
-              {isRunning ? <Pause size={20} /> : <Play size={20} />}
-              {isRunning ? 'Pause' : 'Play'}
-            </button>
-
-            <button
-              onClick={onNextSlot}
-              style={{
-                padding: '12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
-                color: '#ffffff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <SkipForward size={20} />
-            </button>
-
-            <button
-              onClick={onReset}
-              style={{
-                padding: '12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
-                color: '#ffffff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <RotateCcw size={20} />
-            </button>
+            <span style={{ fontSize: '16px', color: '#cccccc' }}>Energy per Handover</span>
+            <div style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: '4px',
+            }}>
+              <span style={{
+                fontSize: '24px',
+                fontWeight: '700',
+                color: '#00ff88',
+                fontFamily: 'monospace',
+              }}>
+                {ENERGY_CONFIG.ENERGY_PER_HANDOVER}
+              </span>
+              <span style={{ fontSize: '16px', color: '#aaaaaa' }}>J</span>
+            </div>
           </div>
         </div>
 
-        {/* 速度控制 */}
+        {/* 頻率複用圖例 */}
         <div>
           <div style={{
-            fontSize: '15px',
+            fontSize: '17px',
             color: '#ffffff',
             fontWeight: '600',
-            marginBottom: '12px',
-          }}>
-            Animation Speed
-          </div>
-          <div style={{
-            display: 'flex',
-            gap: '8px',
-          }}>
-            {[0.5, 1, 2, 3].map((s) => (
-              <button
-                key={s}
-                onClick={() => onSpeedChange(s)}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  backgroundColor: speed === s ? 'rgba(0, 136, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${speed === s ? '#0088ff' : 'rgba(255, 255, 255, 0.1)'}`,
-                  borderRadius: '8px',
-                  color: speed === s ? '#0088ff' : '#999999',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: speed === s ? '600' : '400',
-                }}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 圖例 */}
-        <div>
-          <div style={{
-            fontSize: '15px',
-            color: '#ffffff',
-            fontWeight: '600',
-            marginBottom: '12px',
+            marginBottom: '14px',
           }}>
             Frequency Reuse (FRF3)
           </div>
@@ -317,19 +388,20 @@ export function BeamHoppingSidebar({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
-                  padding: '8px 12px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: '6px',
+                  gap: '12px',
+                  padding: '10px 14px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                  borderRadius: '8px',
                 }}
               >
                 <div style={{
-                  width: '16px',
-                  height: '16px',
+                  width: '20px',
+                  height: '20px',
                   borderRadius: '4px',
                   backgroundColor: color,
+                  boxShadow: `0 0 8px ${color}66`,
                 }} />
-                <span style={{ color: '#cccccc', fontSize: '13px' }}>{label}</span>
+                <span style={{ color: '#dddddd', fontSize: '15px' }}>{label}</span>
               </div>
             ))}
           </div>

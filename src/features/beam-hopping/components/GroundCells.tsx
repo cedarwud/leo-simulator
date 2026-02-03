@@ -53,7 +53,7 @@ export function GroundCell({
   }, [beam.radius]);
 
   return (
-    <group position={[beam.position.x, 0.5, beam.position.z]}>
+    <group position={[beam.position.x, 2, beam.position.z]}>
       {/* 填充區域 - 使用 Additive Blending 實現重疊混色效果 */}
       <mesh geometry={circleGeometry}>
         <meshBasicMaterial
@@ -64,6 +64,9 @@ export function GroundCell({
           side={THREE.DoubleSide}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
         />
       </mesh>
 
@@ -77,12 +80,13 @@ export function GroundCell({
         dashed={!beam.isActive}
         dashSize={8}
         gapSize={6}
+        depthWrite={false}
       />
 
       {/* 標籤 */}
       {showLabel && (
         <Text
-          position={[0, 2, 0]}
+          position={[0, 5, 0]}
           fontSize={12}
           color={beam.isActive ? '#ffffff' : '#aaaaaa'}
           anchorX="center"

@@ -1,50 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Home } from 'lucide-react';
-import { BeamHoppingScene, BeamHoppingSidebar } from '../features/beam-hopping';
+import { BeamHoppingScene, BeamHoppingSidebar, BeamManagementStats } from '../features/beam-hopping';
 import { Starfield } from '../shared/components';
 
-interface SceneState {
-  currentSlotIndex: number;
-  isRunning: boolean;
-  progress: number;
-  activeBeams: number[];
-}
-
 export function BeamHoppingPage() {
-  const [sceneState, setSceneState] = useState<SceneState>({
-    currentSlotIndex: 0,
-    isRunning: true,
-    progress: 0,
-    activeBeams: [],
-  });
+  // Beam management 統計數據
+  const [stats, setStats] = useState<BeamManagementStats | undefined>(undefined);
 
-  const [speed, setSpeed] = useState(1);
-
-  const handleStateChange = useCallback((state: SceneState) => {
-    setSceneState(state);
-  }, []);
-
-  // 注意：這些控制函數目前是佔位符
-  // 完整實作需要透過 Context 或 ref 來控制 Scene
-  const handleToggle = useCallback(() => {
-    // 目前由 Scene 內部自動控制
-  }, []);
-
-  const handleReset = useCallback(() => {
-    // 目前由 Scene 內部自動控制
-  }, []);
-
-  const handleNextSlot = useCallback(() => {
-    // 目前由 Scene 內部自動控制
-  }, []);
-
-  const handlePrevSlot = useCallback(() => {
-    // 目前由 Scene 內部自動控制
-  }, []);
-
-  const handleSpeedChange = useCallback((newSpeed: number) => {
-    setSpeed(newSpeed);
+  const handleStatsUpdate = useCallback((newStats: BeamManagementStats) => {
+    setStats(newStats);
   }, []);
 
   return (
@@ -84,18 +49,7 @@ export function BeamHoppingPage() {
       </Link>
 
       {/* 側邊控制面板 */}
-      <BeamHoppingSidebar
-        currentSlotIndex={sceneState.currentSlotIndex}
-        isRunning={sceneState.isRunning}
-        progress={sceneState.progress}
-        activeBeams={sceneState.activeBeams}
-        speed={speed}
-        onToggle={handleToggle}
-        onReset={handleReset}
-        onNextSlot={handleNextSlot}
-        onPrevSlot={handlePrevSlot}
-        onSpeedChange={handleSpeedChange}
-      />
+      <BeamHoppingSidebar stats={stats} />
 
       {/* 3D 場景 */}
       <div style={{
@@ -105,7 +59,7 @@ export function BeamHoppingPage() {
         right: 0,
         bottom: 0,
       }}>
-        <BeamHoppingScene onStateChange={handleStateChange} />
+        <BeamHoppingScene onStatsUpdate={handleStatsUpdate} />
       </div>
 
       {/* 右下角說明 */}
@@ -117,8 +71,8 @@ export function BeamHoppingPage() {
         backgroundColor: 'rgba(0, 0, 0, 0.7)',
         borderRadius: '8px',
         border: '1px solid rgba(255, 255, 255, 0.1)',
-        color: '#888888',
-        fontSize: '12px',
+        color: '#bbbbbb',
+        fontSize: '13px',
         maxWidth: '250px',
         zIndex: 1001,
       }}>

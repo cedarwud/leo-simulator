@@ -23,8 +23,8 @@ export function BeamCone({
   beam,
   satelliteHeight,
   satellitePosition = [0, satelliteHeight, 0],
-  activeOpacity = 0.06,
-  inactiveOpacity = 0.015,
+  activeOpacity = 0.15,
+  inactiveOpacity = 0.04,
 }: BeamConeProps) {
   const groupRef = useRef<THREE.Group>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);

@@ -4,7 +4,7 @@ import { OrbitControls, PerspectiveCamera, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { NTPUScene } from '@/components/scene/NTPUScene';
 import { UAV } from '@/components/scene/UAV';
-import { BeamHoppingDemo } from './BeamHoppingDemo';
+import { BeamHoppingDemo, BeamManagementStats } from './BeamHoppingDemo';
 
 // Loading indicator
 function Loader() {
@@ -24,7 +24,11 @@ function Loader() {
 }
 
 // 場景內容
-function SceneContent() {
+interface SceneContentProps {
+  onStatsUpdate?: (stats: BeamManagementStats) => void;
+}
+
+function SceneContent({ onStatsUpdate }: SceneContentProps) {
   // UAV 位置（場景中心）
   const uavPosition = new THREE.Vector3(0, 10, 0);
 
@@ -37,7 +41,7 @@ function SceneContent() {
       <UAV position={[uavPosition.x, uavPosition.y, uavPosition.z]} scale={10} />
 
       {/* Beam Hopping 展示 */}
-      <BeamHoppingDemo uavPosition={uavPosition} />
+      <BeamHoppingDemo uavPosition={uavPosition} onStatsUpdate={onStatsUpdate} />
     </>
   );
 }
@@ -49,9 +53,11 @@ export interface BeamHoppingSceneProps {
     progress: number;
     activeBeams: number[];
   }) => void;
+  /** Beam management 統計數據更新回調 */
+  onStatsUpdate?: (stats: BeamManagementStats) => void;
 }
 
-export function BeamHoppingScene({ onStateChange }: BeamHoppingSceneProps) {
+export function BeamHoppingScene({ onStateChange, onStatsUpdate }: BeamHoppingSceneProps) {
   return (
     <Canvas
       shadows
@@ -64,23 +70,23 @@ export function BeamHoppingScene({ onStateChange }: BeamHoppingSceneProps) {
       }}
       style={{ background: 'transparent' }}
     >
-      {/* 相機設置 - 適合觀看 beam hopping */}
+      {/* 相機設置 - 與主場景一致 */}
       <PerspectiveCamera
         makeDefault
-        position={[400, 400, 600]}
+        position={[0, 800, 1200]}
         fov={60}
-        near={1}
-        far={5000}
+        near={0.1}
+        far={10000}
       />
 
       <OrbitControls
-        target={[0, 100, 0]}
+        target={[0, 200, 0]}
         enableDamping
         dampingFactor={0.05}
         zoomSpeed={0.5}
-        minDistance={200}
-        maxDistance={1500}
-        maxPolarAngle={Math.PI / 2.1}
+        minDistance={10}
+        maxDistance={10000}
+        maxPolarAngle={Math.PI / 2}
       />
 
       {/* 燈光 */}
@@ -101,7 +107,7 @@ export function BeamHoppingScene({ onStateChange }: BeamHoppingSceneProps) {
       />
 
       <Suspense fallback={<Loader />}>
-        <SceneContent />
+        <SceneContent onStatsUpdate={onStatsUpdate} />
       </Suspense>
     </Canvas>
   );
