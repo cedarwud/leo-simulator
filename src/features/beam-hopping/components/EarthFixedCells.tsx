@@ -3,13 +3,40 @@ import { Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
 
 /**
- * FRF3 頻率複用顏色
- * 相鄰 cells 使用不同頻率組以避免干擾
+ * 論文 4-1：雙極化配置顏色
+ * 衛星天線採用 2 種正交極化方式來緩解波束間干擾
+ * "Satellite antennas adopt two polarization configurations to alleviate inter-beam interference"
+ */
+export const POLARIZATION_COLORS = {
+  A: '#ff8844',  // 極化 A：橙色
+  B: '#44aaff',  // 極化 B：青色
+} as const;
+
+/**
+ * 波束極化分配（論文 4-1）
+ * 相鄰波束使用不同極化以避免干擾
+ * Beam 1, 3, 5, 7... → 極化 A
+ * Beam 2, 4, 6, 8... → 極化 B
+ */
+export function getBeamPolarization(beamId: number): 'A' | 'B' {
+  return beamId % 2 === 1 ? 'A' : 'B';
+}
+
+/**
+ * 獲取波束顏色（基於極化）
+ */
+export function getBeamColor(beamId: number): string {
+  return POLARIZATION_COLORS[getBeamPolarization(beamId)];
+}
+
+/**
+ * @deprecated 使用 POLARIZATION_COLORS 替代
+ * 保留向後兼容
  */
 export const FRF3_CELL_COLORS = {
-  0: '#ff6666',  // 頻率組 0：紅色
-  1: '#66ff66',  // 頻率組 1：綠色
-  2: '#6688ff',  // 頻率組 2：藍色
+  0: POLARIZATION_COLORS.A,  // 映射到極化 A
+  1: POLARIZATION_COLORS.B,  // 映射到極化 B
+  2: POLARIZATION_COLORS.A,  // 映射到極化 A（循環）
 } as const;
 
 /**
@@ -22,7 +49,7 @@ export interface EarthFixedCell {
   position: { x: number; z: number };
   /** Cell 半徑 */
   radius: number;
-  /** 頻率複用組 (0, 1, 2 for FRF3) */
+  /** @deprecated 使用 servingPolarization 替代 */
   frequencyGroup: 0 | 1 | 2;
   /** Data Queue 長度 (bytes) */
   dataQueue: number;
@@ -32,6 +59,10 @@ export interface EarthFixedCell {
   isServed: boolean;
   /** 服務此 cell 的衛星 ID */
   servingSatelliteId: string | null;
+  /** 服務此 cell 的波束 ID */
+  servingBeamId: number | null;
+  /** 服務此 cell 的波束極化 (論文 4-1) */
+  servingPolarization: 'A' | 'B' | null;
   /** 服務此 cell 的波束顏色 */
   servingBeamColor: string | null;
   /** 能覆蓋此 cell 的衛星數量（用於顯示重疊區域）*/
@@ -95,16 +126,17 @@ function EarthFixedCellComponent({
   // 六邊形幾何
   const hexGeometry = useMemo(() => createHexagonGeometry(cell.radius), [cell.radius]);
   const borderPoints = useMemo(() => createHexagonBorderPoints(cell.radius), [cell.radius]);
-  
-  // 顏色邏輯：基於頻率複用組（FRF3）
-  const frequencyColor = FRF3_CELL_COLORS[cell.frequencyGroup];
-  const baseColor = cell.isServed && cell.servingBeamColor 
-    ? cell.servingBeamColor 
-    : frequencyColor;
-  
-  // 填充透明度：被服務時更亮
-  const fillOpacity = cell.isServed ? 0.4 : 0.2;
-  const borderOpacity = cell.isServed ? 1.0 : 0.8;
+
+  // 論文 4-1 顏色邏輯：
+  // - 被服務時：顯示服務波束的極化顏色（亮色）
+  // - 未被服務時：淺灰色（仍可見）
+  const baseColor = cell.isServed && cell.servingPolarization
+    ? POLARIZATION_COLORS[cell.servingPolarization]
+    : '#aaaaaa';  // 未被服務時為淺灰色
+
+  // 填充透明度：被服務時更亮，未被服務時仍可見
+  const fillOpacity = cell.isServed ? 0.5 : 0.25;
+  const borderOpacity = cell.isServed ? 1.0 : 0.7;
   const borderWidth = cell.isServed ? 4 : 2.5;
   
   return (
@@ -124,10 +156,10 @@ function EarthFixedCellComponent({
         />
       </mesh>
       
-      {/* 六邊形邊框 */}
+      {/* 六邊形邊框 - 論文 4-1：顏色由服務波束極化決定 */}
       <Line
         points={borderPoints}
-        color={cell.isServed ? cell.servingBeamColor || '#ffffff' : frequencyColor}
+        color={baseColor}
         lineWidth={borderWidth}
         transparent
         opacity={borderOpacity}
@@ -246,11 +278,13 @@ export function generateEarthFixedCells(config: {
         id: cellId,
         position: { x, z },
         radius: cellRadius,
-        frequencyGroup,
-        dataQueue: Math.random() * 1500000, // 暫時用隨機數據
-        arrivalRate: 50 + Math.random() * 150, // Mbps
+        frequencyGroup,  // @deprecated 保留向後兼容
+        dataQueue: 200 + Math.random() * 300, // 初始 200-500（範圍 0-1000）
+        arrivalRate: 80 + Math.random() * 40, // 80-120 Mbps
         isServed: false,
         servingSatelliteId: null,
+        servingBeamId: null,
+        servingPolarization: null,  // 論文 4-1：由服務波束決定
         servingBeamColor: null,
       });
       

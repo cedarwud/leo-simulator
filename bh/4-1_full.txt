@@ -1,0 +1,2257 @@
+IEEE TRANSACTIONS ON COMMUNICATIONS, VOL. 73, NO. 7, JULY 2025
+
+5247
+
+Beam Management in Low Earth Orbit Satellite
+Communication With Handover Frequency Control
+and Satellite-Terrestrial Spectrum Sharing
+Jianfeng Zhu , Yaohua Sun , and Mugen Peng
+
+Abstract— To achieve ubiquitous wireless connectivity, low
+earth orbit (LEO) satellite networks have drawn much attention.
+However, effective beam management is challenging due to
+time-varying cell load, high dynamic network topology, and complex interference situations. In this paper, under inter-satellite
+handover frequency and satellite-terrestrial/inter-beam interference constraints, we formulate a practical beam management
+problem, aiming to maximize the long-term service satisfaction
+of cells. Particularly, Lyapunov framework is leveraged to equivalently transform the primal problem into multiple single epoch
+optimization problems, where virtual queue stability constraints
+replace inter-satellite handover frequency constraints. Since each
+single epoch problem is NP-hard, we further decompose it into
+three subproblems, including inter-satellite handover decision,
+beam hopping design and satellite-terrestrial spectrum sharing.
+First, a proactive inter-satellite handover mechanism is developed
+to balance handover frequency and satellite loads. Subsequently,
+a beam hopping design algorithm is presented based on conflict
+graphs to achieve interference mitigation among beams, and
+then a flexible satellite-terrestrial spectrum sharing algorithm
+is designed to satisfy the demands of beam cells and improve
+spectral efficiency. Simulation results show that our proposal significantly improves service satisfaction compared with baselines,
+where the average data queue length of beam cells is reduced by
+over 20% with affordable handover frequency.
+Index Terms— Low earth orbit satellite, beam management,
+inter-satellite handover, interference mitigation, spectrum sharing.
+
+I. I NTRODUCTION
+N LAST decade, rapid technical developments have facilitated the deployments and applications of LEO satellite
+networks [1], [2], [3]. Although LEO satellite networks
+can provide seamless service, effective beam management
+is highly challenging. Specifically, due to uneven traffic
+
+I
+
+Received 21 May 2024; revised 18 October 2024; accepted 4 December
+2024. Date of publication 12 December 2024; date of current version 17 July
+2035. This work was supported in part by the National Key R&D Program of
+China under Grant 2022YFB2902600, in part by the National Natural Science
+Foundation of China under Grants 62371071, in part by BUPT Excellent Ph.D.
+Students Foundation CX20243075, and in part by the Young Elite Scientists
+Sponsorship Program by the China Association for Science and Technology
+under Grant 2021QNRC001. The associate editor coordinating the review of
+this article and approving it for publication was A. Maaref. (Corresponding
+author: Yaohua Sun.)
+The authors are with the State Key Laboratory of Networking and Switching
+Technology, Beijing University of Posts and Telecommunications, Beijing
+100876, China (e-mail: jianfeng@bupt.edu.cn; sunyaohua@bupt.edu.cn;
+pmg@bupt.edu.cn).
+Digital Object Identifier 10.1109/TCOMM.2024.3516479
+
+distributions, limited radio resource, and high dynamic topology, LEO satellite beam management need to deal with
+frequent inter-satellite handover [4], unsatisfied capacity by
+beam hopping [5], and severe inter-beam interference. Meanwhile, considering the shortage of available spectrum resource,
+satellite-terrestrial spectrum sharing is a promising direction
+[6].
+A. Related Works
+1) Inter-Satellite Handover: Low handover frequency can
+reduce signaling overhead and provide continuous service
+experience. In [7], users monitor the received signal strength,
+and handover procedure is performed when the measured
+signal strength is lower than a certain threshold. However,
+it is intractable to judge appropriate handover occasions
+because near-far distance effects are insignificant in LEO satellite networks [4]. Therefore, several other handover criteria
+are proposed, including longest remaining service time [8],
+shortest distance [9] and load balance [10]. In contrast to
+adopting single criterion with partial information for handover,
+Zhang et al. in [11] develop a multi-attribute handover decision
+scheme based on entropy by combining multiple handover
+criteria. Although the above works can reduce handover frequency, handover decisions are mainly made by users with
+local observations about LEO satellite networks, which may
+result in handover to a satellite with high load. To overcome
+this issue, a centralized handover strategy is proposed in [12]
+by searching the minimum cost and maximum flow in a binary
+graph between satellites and users. Wang et al. in [4] propose a
+conditional handover triggering mechanism to enhance service
+continuity, where gateway stations reallocate serving satellites
+for all users when network topology changes. The simulation results show that a centralized handover strategy with
+proactive handover triggering mechanism can improve service continuity. Unfortunately, since current inter-satellite
+handover mechanisms are only triggered when network
+topology changes, they are shortsighted and cannot adapt
+to time-varying traffic arrival, which may lead to load
+imbalance among satellites and degrade network throughput.
+2) Beam Hopping: With inevitable challenges caused by
+uneven transmission demand distribution and potential interbeam interference, industry and academia have adopted
+
+0090-6778 © 2024 IEEE. All rights reserved, including rights for text and data mining, and training of artificial intelligence
+and similar technologies. Personal use is permitted, but republication/redistribution requires IEEE permission.
+See https://www.ieee.org/publications/rights/index.html for more information.
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+5248
+
+beam hopping as a promising approach to fully utilize
+time-frequency resource and support inter-beam spectrum
+sharing. Overall, beam hopping research can be divided into
+two categories, including intra-satellite beam hopping strategies [13], [14] and inter-satellite cooperative beam hopping
+strategies [5], [15]. Authors in [13] propose a swap matching
+algorithm to reduce the gap between traffic requests and
+capacity provision. In [14], beam cells are dynamically divided
+into multiple clusters with comparable loads, and then a beam
+hopping strategy is developed under inter-cluster interference
+isolation. Compared to scenarios with a single satellite, intersatellite beam hopping design not only requires intra-satellite
+interference mitigation but also needs to consider inter-satellite
+interference. To this end, a multi-satellite beam hopping design
+approach is developed in [5] by intra-satellite beam hopping
+and additional inter-satellite interference coordinating, where
+serving relationships between satellites and beam cells are
+determined by a load balance method. In [15], an enhanced
+heuristic method for beam hopping is developed in dual
+satellite cooperative scenarios, which contributes to improving spectral efficiency. Although current beam hopping
+research can obtain a high service satisfaction, their beam
+pattern design mainly depends on instantaneous transmission demand without considering potential inter-satellite
+handover and interference to terrestrial networks.
+3) Satellite-Terrestrial Spectrum Sharing: Due to limited
+spectrum resource, LEO satellite networks may be deficient
+to offer sufficient capacity to hop-spot areas via its owner
+spectrum. Since terrestrial base stations sometimes operate
+in low-load states, spectrum sharing between LEO satellite
+and terrestrial networks is an attractive solution to tackle the
+spectrum shortage problem. A protection area based method is
+adopted in [16] to achieve spatial isolation between satellites
+and terrestrial networks. Moreover, authors in [6] evaluate
+satellite-terrestrial interference and then calculate the radius
+of protected area for the coexistence of satellite and terrestrial networks. Unfortunately, interference avoidance methods
+in [6], [16] cause coverage holes and disrupt communication
+services in protected area. For seamless coverage, Du et al.
+in [17] adopt a flexible spectrum sharing strategy based
+on a second-priced auction mechanism between a satellite
+and several base stations, achieving high data rate. In [18],
+a spectrum sharing method is designed by jointly allocating
+spectrum and power resource for satellite-terrestrial networks.
+Although the above works provide feasible solutions for
+satellite-terrestrial spectrum sharing and improve network
+capacity by satellite-terrestrial interference mitigation,
+they mainly focus on scenarios with a single satellite or
+a single beam, whereas base stations may receive multiple
+interference signals from different beams or satellites in
+practice. Moreover, with the increasing number of base
+stations and satellites, their proposed methods cannot be
+directly applied due to sizeable computational complexity.
+B. Motivation and Contribution
+Overall, the long-term service satisfaction of cells is highly
+relevant to LEO satellite beam management approaches, which
+needs to consider inter-satellite handover, beam hopping
+
+IEEE TRANSACTIONS ON COMMUNICATIONS, VOL. 73, NO. 7, JULY 2025
+
+design, and satellite-terrestrial spectrum sharing. As mentioned, due to the time-varying transmission demands of cells,
+current inter-satellite handover mechanisms are ineffective in
+tackling the challenges caused by imbalanced load among
+satellites accumulated over time. To satisfy the differential
+transmission demands of cells, the above studies in beam
+hopping design greedily maximize the service satisfaction of
+cells in each epoch. However, they do not take inter-satellite
+handover and interference to terrestrial networks into account.
+In addition, most satellite-terrestrial spectrum sharing studies
+only focus on a simple scenario with a single satellite or a
+single beam, which cannot be applied in dynamic multiple
+LEO satellite networks. To the best of our knowledge, longterm beam management approach, which jointly considers
+inter-satellite handover decision, beam hopping design,
+and satellite-terrestrial spectrum sharing, has not been
+studied.
+To fill this gap, this paper proposes an effective long-term
+beam management approach for scenarios with multiple LEO
+satellites, comprising inter-satellite handover frequency control, beam hopping design, and satellite-terrestrial spectrum
+sharing. To handle the challenge caused by time-averaged
+objective and handover frequency constraints, we leverage
+Lyapunov framework to obtain beam management decisions
+by solving a sequence of single epoch problems. In each
+epoch, we identify inter-satellite handover events by the
+proposed conditional handover triggering mechanism, which
+keeps load balance among satellites and maintains a low
+inter-satellite handover frequency. Under the given serving
+satellites, we further develop low-complexity beam hopping
+design and satellite-terrestrial spectrum sharing algorithms to
+maximize service satisfaction. The main contributions of this
+paper are summarized as follows.
+• Practical network model with multiple LEO satellites
+and novel beam management problem formulation:
+We study a practical network model with multiple LEO
+satellites, which feature dynamic topology, random traffic arrival, earth-fixed cells, satellite-terrestrial/inter-beam
+interference, and corresponding interference mitigation to
+achieve inter-beam and satellite-terrestrial spectrum sharing. Based on such a model, we further formulate a novel
+beam management problem to maximize the long-term
+service satisfaction of beam cells, where inter-satellite
+handover frequency, interference constraints, and the
+guaranteed transmission demand of terrestrial networks
+are considered. Considering the difficulty to deal with the
+time-averaged objective function and constraints directly,
+we construct virtual queues for beam cells and then adopt
+Lyapunov framework to transform the primal problem
+into a series of tractable single epoch problems, where
+queue stability constraints replace inter-satellite handover
+frequency constraints. Since the transformed problem has
+NP complexity, we further decompose it into three simplified subproblems, consisting of inter-satellite handover
+decision, beam hopping design, and satellite-terrestrial
+spectrum sharing.
+• Effective algorithm design for the above three subproblems: First, a novel conditional handover triggering
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+ZHU et al.: BEAM MANAGEMENT IN LOW EARTH ORBIT SATELLITE COMMUNICATION
+
+5249
+
+TABLE I
+N OTATION
+
+Fig. 1.
+
+The concerned LEO satellite network scenario.
+
+mechanism is proposed, which establishes the connections between inter-satellite handover events and network
+statuses, including time-frequency resource utilization,
+cell service satisfaction, and network topology. With
+such a mechanism, we develop an inter-satellite handover
+decision algorithm based on a multi-attribute handover
+decision scheme and swap matching, aiming to control
+long-term inter-satellite handover frequency and satellite
+load distributions. Subsequently, we build a conflict graph
+to characterize potential inter-beam interference under
+the given serving satellite of each beam cell. Then,
+a low-complexity beam hopping design algorithm is
+developed to maximize the transmission capacity of cells
+and satisfy interference constraints. After beam hopping
+design, we propose a satellite-terrestrial spectrum sharing
+algorithm by combining improved binary sparrow search
+and greedy search, which contributes to high service
+satisfaction and spectral efficiency.
+• Deep analysis of computational complexity and extensive simulation evaluations: The complexities of the
+proposed three algorithms and complete beam management approach are analyzed in-depth, which indicates that
+our proposal reduces computational complexity from an
+exponential level to a square level. By conducting massive
+simulations, it is shown that the proposed beam management approach can satisfy maximum inter-satellite
+handover frequency constraint. Furthermore, our proposal
+reduces the average data queue length by over 49%
+compared with traditional inter-satellite handover mechanisms. In addition, the average data queue length is
+reduced by over 20% compared with the baselines of
+satellite-terrestrial spectrum sharing, which verifies the
+superiority of our proposal.
+The reminder of this paper is organized as follows.
+Section II presents the system model and spectrum sharing schemes for LEO satellite networks. In Section III, the
+concerned beam management problem is formulated, and
+the proposed beam management algorithms are presented in
+Section IV. Simulation results are given in Section V, and the
+conclusions are drawn in Section VI. The main notations used
+in this paper are summarized in Table I.
+II. S YSTEM M ODEL
+A. Network Model
+As shown in Fig. 1, define S = {1, . . . , s . . . , S} as the set
+of LEO satellites, and each satellite can generate up to B spot
+
+beams to provide high data rates. Define B = {1, .., b, . . . , B}
+as the beam index set of a satellite. Satellite antennas adopt
+two polarization configurations to alleviate inter-beam interference [19]. Moreover, all spot beam directions are controlled by
+a gateway station, which locates on the ground and connects
+satellites via feeder links. Due to the long propagation delay,
+the gateway station formulates beam management decisions
+in advance, which consists of the serving satellites of beam
+cells, spot beam hopping design, and the bandwidth of beams.
+Meanwhile, several wide control beams are generated by LEO
+satellites to broadcast beam management decision to satellite
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+5250
+
+IEEE TRANSACTIONS ON COMMUNICATIONS, VOL. 73, NO. 7, JULY 2025
+
+users. Control beams and spot beams operate on orthogonal
+frequency bands, and hence interference between them can
+be ignored. Denote the set of earth-fixed spot beam cells and
+terrestrial cells as C = {1, 2, . . . , C} and G = {1, 2, . . . , G},
+respectively. Denote the bandwidth of satellite and terrestrial
+networks as W1 and W2 , respectively. Terrestrial cells adopt
+soft frequency reuse schemes to serve handheld terminals,
+and satellite users support carrier aggregation between the
+spectrums of LEO satellite networks and terrestrial networks.
+Gateway station can exchange information with the terrestrial
+core network through optical fiber links, including cell loads
+and locations as well as beam hopping design.
+Define f = 1, 2, 3, . . . as the index of beam scheduling
+epoch. Each epoch is further divided into T identical slots with
+duration Tslot [5], and the index set of time slot is denoted
+as T = {1, 2, . . . , T }. Network topology between satellites
+and cells is regarded as static in each epoch due to relatively
+short duration. Define xfs,c ∈ {0, 1} to indicate the serving
+relationship between satellite s and beam cell c in epoch f .
+xfs,c = 1 represents that satellite s serves cell c in epoch f ,
+f,t
+∈ {0, 1} to indicate
+and xfs,c = 0 otherwise. Define ys,c,b
+the serving relationship between cell c and the b-th beam of
+f,t
+satellite s in the t-th slot of epoch f . ys,c,b
+= 1 if beam cell
+c is served by the b-th beam of satellite s in the t-th slot of
+f,t
+epoch f , and ys,c,b
+= 0 otherwise.
+Referring to [20], we assume that satellite users are
+equipped with parabolic antennas, while terrestrial users use
+omnidirectional antennas. Moreover, each user is equipped
+with a single antenna. Meanwhile, terrestrial users are located
+within terrestrial cells and satellite users are distributed outside
+the terrestrial cell areas [20], [21]. The gateway station stores
+beam cell data into data queues Qc . Considering that users are
+unevenly distributed among cells, arrival data sizes of cells are
+differential. In epoch f , define αcf as the sum size of newly
+arrived data of all satellite users in cell c, and then the update
+process of data queue Qc length can be expressed as
+Qfc +1 = max(Qfc − Dcf , 0) + αcf ,
+
+(1)
+
+where Dcf is the received data size of cell c in epoch
+f
+f , depending on transmission power Ps,c
+, transmission and
+receiving gain of antennas, bandwidth Wcf , channel gain
+hfs,c between the center point of cell c and satellite s, and
+interference. Furthermore, Dcf can be calculated as
+Dcf =
+
+S X
+B X
+T
+X
+
+Wcf Tslot log(1 +
+
+s=1 b=1 t=1
+
+f,t
+f
+ys,c,b
+Ps,c
+Gp hfs,c
+f,t
+g
+Is,c,b
++ Ic,f,t
++ kTc Wcf
+
+where Gp = G1p G2p , G1p and G2p are the peak gains of transmission and receiving antennas, respectively. k is Boltzman
+g
+constant, Tc represents receiver temperature of cell c. Ic,f,t
+is the strength of received interference from terrestrial base
+f,t
+stations. Is,c,b
+is the strength of interference the cell c suffered
+in the t-th slot of epoch f , which is given by [15]
+X X X f,t
+f,t
+f
+1
+Is,c,b
+=
+ys′ ,c′ ,b′ Ps,c
+G2θf hfs′ ,c ,
+′ Gp G f
+θ
+c′ ,s′ ,c
+
+c′ ,s′ ,c
+
+s′ ,c,s
+
+the gain attenuations of transmission and receiving antennas on
+the direction of off-axis angles θcf′ ,s′ ,c and θsf′ ,c,s , respectively.
+Particularly, θcf′ ,s′ ,c can be calculated as
+θcf′ ,s′ ,c = arccos[((dfs′ ,c )2 +(dfs′ ,c′ )2 − (dfc,c′ )2 )/(2dfs′ ,c dfs′ ,c′ )],
+(4)
+where dfs′ ,c , dfs′ ,c′ and dfc,c′ represent the distance between
+satellite s′ and the center of cell c, satellite s′ and the center
+of cell c′ , the centers of cells c and c′ in epoch f , respectively.
+Similarly, θsf′ ,c,s can be calculated as
+θsf′ ,c,s = arccos[((dfs,c )2 + (dfs′ ,c )2 − (dfs,s′ )2 )/(2dfs,c dfs′ ,c )],
+(5)
+where dfs,s′ represents the distance between satellites s and s′
+in epoch f .
+Define lgf ∈ [0, 1] as the transmission load of base station
+g in epoch f , which means that base station g should work
+at least ⌈lgf T ⌉ time slots to guarantee the service quality of
+terrestrial users. Since the coverage radius can reach several
+ten to hundred kilometers, a beam occupying the spectrum
+of terrestrial networks will incur serious co-frequency interf,t
+ference to numerous terrestrial cells. Define zs,c
+∈ {0, 1} to
+indicate whether satellite s occupies the spectrum of terrestrial
+f,t
+= 1 means that satellite s
+networks to serve cell c. zs,c
+occupies the spectrum of terrestrial cells to serve beam cell c in
+f,t
+= 0 otherwise. At the center
+the t-th slot of epoch f , and zs,c
+of terrestrial cell g, the strength of the received interference
+signal from the beam cell c in the t-th slot of epoch f can be
+expressed as [18]
+X
+f,t
+f,t f
+Ig,c
+=
+zs,c
+Ps,c G1p G1θf G3θf hfs,g ,
+(6)
+c,s,g
+
+s,g
+
+s∈S
+
+where G1θf
+
+is the gain attenuation of the satellite antenna
+
+c,s,g
+
+f
+on the direction of off-axis angle θc,s,g
+, which is calculated
+based on the location of satellite s, the centers of cells c and
+g. G3θf is the receiving gain on the direction of off-axis angle
+s,g
+
+f
+f
+θs,g
+, and θs,g
+depends on the location of satellite s, cell c and
+terrestrial users. hfs,g is channel gain between the center of
+cell g and satellite s in epoch f .
+
+),
+
+(2)
+
+c′ ∈C\{c} s′ ∈S b′ ∈Bb
+
+where Bb is the set of beams with the same spectrum and
+polarization configuration as beam b. G1θf
+and G2θf
+are
+
+s′ ,c,s
+
+(3)
+
+B. Interference Mitigation Strategies to Achieve Spectrum
+Sharing in LEO Satellite Networks
+1) Inter-Beam Interference Mitigation Strategy: Considering that the movement trajectory and speed of LEO
+satellites can be predicted using ephemeris information, the
+frequency offset caused by the Doppler effect can be calculated
+in advance. Subsequently, satellites can execute frequency
+pre-compensation to mitigate inter-beam interference caused
+by the Doppler effect. Then, the negative effect of Doppler
+effect can be ignored. Next, we further provide feasible
+inter-beam interference mitigation strategies for wide beams,
+spot beams, and feeder links.
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+ZHU et al.: BEAM MANAGEMENT IN LOW EARTH ORBIT SATELLITE COMMUNICATION
+
+a) Wide beams: Similar to spot beam cells, wide beam cells
+are also earth-fixed, but each wide beam cell overlaps with
+multiple spot beam cells. Since the spot beam cells served
+by different satellites may be geographically close, multiple
+wide beams may overlap simultaneously. Hence, a frequencydivision multiplexing strategy is required. In this case, the
+available spectrum for wide beams is divided into several
+distinct bands, e.g. 9 segments. Then, each wide beam cell
+is allocated three available frequency bands, ensuring that
+the spectrum of each wide beam cell is orthogonal to that
+of its adjacent cells. When a LEO satellite transmits control
+signaling to a specific cell, the corresponding wide beam can
+only select one band from the allocated frequency bands of
+the target cell. Based on the above scheme, the co-frequency
+interference among wide beams can be effectively mitigated.
+b) Spot beams: In [13] and [15], a simple interference
+mitigation strategy is adopted to design beam hopping patterns, where any two adjacent beam cells obtain service in
+different slots. Unfortunately, as the beam direction is far
+from the sub-satellite point, the beam footprint deforms, and
+its coverage area extends [1]. In this case, the serving beam
+brings severe interference to the nonadjacent cells of served
+cell, which makes the above interference mitigation strategy
+ineffective. Remarkably, the gain of high directional antennas
+rapidly decreases when off-axis angles exceed the half-power
+f,t
+beamwidth of antennas, and interference strength Is,c,b
+in
+equation (2) depends on off-axis angles and interference beam
+number. Hence, we propose a more appropriate inter-beam
+interference mitigation approach based on the off-axis angle
+model, whose detail is presented as follows.
+Denote the target signal-to-noise ratio (SNR) of cell c in
+epoch f as SN Rcf , which can be expressed as
+SN Rcf = 10 log(Psfc ,c Gp hfsc ,c ) − 10 log(kTc Wcf ),
+
+(7)
+
+where sc is the serving satellite of beam cell c. According
+to equation (3) and (7), the interference from cell c′ can be
+calculated by SN Rcf , SN Rcf′ , hfsc ,c , hfsc′ ,c and antenna gain
+attenuation value, where sc′ is the serving satellite of beam
+cell c′ . Define Isth as the acceptable maximum interferenceto-noise ratio (INR) of inter-beam interference [15]. Define Scf
+as the maximal number of satellites that are visible to cell c in
+epoch f . Then, we can set a dynamic threshold Gth
+c,c′ for cell c
+to restrict the maximum sum of antenna gain attenuation value
+caused by off-axis angles θc′ ,sc′ ,c and θsc ,c,sc′ , which can be
+expressed as
+f
+th
+f
+),
+Gth
+c,c′ = Is − 10 log(Sc B) − SN Rc′ − 10 log( f
+δc,c′ hfsc′ ,c
+
+(8)
+f
+
+Fig. 2. The spectrum sharing strategy between LEO satellite networks and
+terrestrial networks.
+
+c) Feeder links: Since the antennas of satellites and gateway
+stations are highly directional, gateway stations can adopt the
+same interference mitigation method based on off-axis angles
+and judge the feasibility of two feeder links sharing the same
+spectrum.
+2) Static Satellite-Terrestrial Interference Mitigation Strategy for Wide Beams: Referring to 3GPP TR 38.802 [22],
+satellite users only require a minimum signal to interference
+plus noise patio (SINR) of -6 dB to correctly receive synchronization and control signaling from LEO satellites. Meanwhile,
+due to the significant near-far effect in terrestrial cells, users
+located at the center of terrestrial cells receive strong signals
+from base stations, while those at the edge receive weaker
+signals and are more susceptible to interference from satellites.
+In this case, when satellite users and terrestrial users are
+distributed across different areas [20], [21], a static satelliteterrestrial spectrum sharing mechanism between wide beams
+and terrestrial networks is developed as shown in Fig. 2.
+Specifically, the terrestrial cell center shares spectrum with
+wide beams and terrestrial cell edge operates on adjacent
+frequency bands to them. Moreover, since the spectrum sharing
+mechanism for wide beams is static, it can enhance spectral
+efficiency without signaling overhead.
+3) Dynamic Satellite-Terrestrial Interference Mitigation
+Strategy for Spot Beams: Define Igth as the INR threshold
+to restrict the maximum interference between LEO satellite
+networks and terrestrial networks [6]. Since off-axis angle
+f
+θs,g
+has high randomness, we set G3θf = Ggp to evaluate
+s,g
+the worst satellite-terrestrial interference case. In this case,
+the INR constraint of satellite-terrestrial interference can be
+expressed as
+XX
+f,t f
+Igf,t =
+zs,c
+Ps,c G1p G1θf Ggp hfs,g < Igth .
+(9)
+c,s,g
+
+c∈C s∈S
+
+hfsc ,c
+
+f
+
+5251
+
+f
+(SN Rc −SN Rc′ )
+where δc,c
+, and B is the maximum beam
+′ = 10
+number generated by a LEO satellite.
+Note that antenna gain attenuation value can be calculated
+based on the locations of beam cells and satellites. Hence,
+we can easily judge the feasibility of two beams sharing the
+same spectrum, where two beams with the same polarization
+configuration cannot share a spectrum unless the sum of
+antenna gain attenuation value is less than Gth
+c,c′ .
+
+When spot beams share the spectrum of terrestrial networks,
+severe co-frequency interference may appear, which lowers the transmission rate and even interrupts communication
+links. To improve spectral efficiency, we propose a dynamic
+satellite-terrestrial interference mitigation strategy to support
+satellite-terrestrial spectrum sharing between spot beams and
+terrestrial networks from a spatial-temporal perspective.
+As shown in Fig. 3, the process of our proposal can be
+concluded as eight steps. First, terrestrial base stations report
+load information to terrestrial core network. Then, the core
+network divides base stations into clusters to reduce the
+signaling overhead and the complexity of satellite-terrestrial
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+5252
+
+IEEE TRANSACTIONS ON COMMUNICATIONS, VOL. 73, NO. 7, JULY 2025
+
+spectrum sharing decision. Considering that the interference
+areas of beams are geographically correlated with the areas
+of served cells, it contributes to distributing base stations
+to clusters. Notably, antenna pattern design plays a crucial
+role in determining the size of a base station cluster. In the
+following, we provide two methods to determine cluster areas
+for different antenna types of LEO satellites.
+a) Parabolic antennas: Due to beam deformation [1], the
+interfered area of a spot beam expands, causing severe interference to base stations located in non-adjacent beam cells of
+the served beam cell. Therefore, when LEO satellites employ
+parabolic antennas, the centers of base station clusters align
+with the center of beam cells. Moreover, the radius of the
+base station cluster is five times that of the beam cells, which
+guarantees that all base stations interfered by the same beam
+are grouped within a base station cluster.
+b) Phased antenna arrays: When phased antenna arrays and
+adaptive beamforming techniques are adopted, LEO satellites
+can force the beam footprint match the boundary of beam
+cells. In this case, the radius of all base station clusters can
+be set to three times the radius of beam cells.
+Based the above methods, base stations can be effectively
+grouped into clusters based on their geographic locations.
+Define J = {1, . . . , j, . . . J} as the set of clusters, and the set
+of base stations in cluster j is denoted as Gj . Next, the core
+network predicts the transmission load of each base station in
+epoch f based on historical load information [23], [24], and
+then sets the cluster load ljf = max lgf . Specifically, advanced
+g∈Gj
+
+artificial intelligence methods are adopted by the core network
+to enable real-time provision of cluster load information to
+the gateway station. Third, the core network provides ljf and
+cluster locations to the gateway station. Subsequently, the
+gateway station formulates beam management decisions for
+epoch f and transmits them to the core network. In this
+step, the formulated beam management decisions guarantee the
+transmission demand of terrestrial users, which means that the
+duration of strong interference a cluster suffered is less than
+T Tslot ⌊1 − ljf ⌋. Then, the gateway station controls satellites
+performing beam management decisions. Moreover, all base
+stations receive the interference slot information provided
+by the core network and then prohibit the transmission or
+receiving of data of cell edge users in these slots. Specifically,
+considering satellite users far from terrestrial base stations
+and the proposed dynamic spectrum sharing strategy, the
+g
+interference Ic,f,t
+from base stations to satellite users in (2) is
+ignored in subsequent analysis.
+III. P ROBLEM F ORMULATION A ND T RANSFORMATION
+A. Problem Constraints
+Considering the limited capability of user equipments,
+a beam cell is served by a beam at most in each slot [5],
+which can be represented as
+S X
+B
+X
+f,t
+ys,c,b
+≤ 1, ∀c ∈ C, ∀f, t.
+
+(10)
+
+s=1 b=1
+
+Moreover, a beam cell is only served by a LEO satellite in
+each epoch, and the serving satellite must be within the beam
+
+Fig. 3. The process of the proposed satellite-terrestrial interference mitigation
+strategy to achieve spectrum sharing.
+
+cell’s visible range, which is expressed as
+S
+X
+
+f
+βs,c
+xfs,c = 1, ∀c ∈ C, ∀f,
+
+(11)
+
+s=1
+f
+f
+= 1 if the elevation angle between
+∈ {0, 1}. βs,c
+where βs,c
+satellite s and the center of beam cell c is larger than a preset
+f
+= 0 otherwise. In addition,
+threshold in epoch f , and βs,c
+a beam cannot simultaneously serve two beam cells, which is
+given by
+C
+X
+f,t
+ys,c,b
+≤ 1, ∀f, s, t, b.
+
+(12)
+
+c=1
+
+Due to hardware capability limitation, a LEO satellite can
+generate up to B beams in each slot, which can be represented
+as
+B
+C X
+X
+f,t
+ys,c,b
+≤ B, ∀s, t, f.
+
+(13)
+
+c=1 b=1
+
+Under the given Gth
+c,c′ in equation (8), we can obtain a tuple
+set Kf , where each element {s, s′ , c, c′ } ∈ Kf represents that
+severe interference occurs if satellites s and s′ simultaneously
+serve cells c and c′ via beams with the same spectrum and
+polarization configuration. Then, to achieve inter-beam spectrum sharing, the inter-beam interference mitigation constraint
+can be expressed as
+f,t
+′
+′
+′
+′
+ys,c,b
++ ysf,t
+′ ,c′ ,b′ = 0, ∀{s, s , c, c } ∈ Kf , b, b ∈ B , ∀t, f,
+
+(14)
+where B ′ is the set of beams with the same frequency band
+and polarization configuration.
+f
+Define Is,c,j
+to indicate the interference event between
+cluster j, LEO satellite s and beam cell c in the t-th slot
+of epoch f , which is given by
+P
+
+1, if xfs,c ( g∈Gg I(Igf,t > Igth )) > 0
+f,t
+Is,c,j
+=
+(15)
+0, otherwise,
+where I(.) is indicator function. Define uf,t
+∈ {0, 1} to
+j
+indicate whether base stations in cluster j suffer serious
+interference from LEO satellites. uf,t
+= 1 if a base station
+j
+in cluster j suffers serious interference from LEO satellites in
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+ZHU et al.: BEAM MANAGEMENT IN LOW EARTH ORBIT SATELLITE COMMUNICATION
+
+the t-th slot of epoch f , and uf,t
+j = 0 otherwise. Specifically,
+f
+the relationship between uf,t
+and
+variable Is,c,j
+in (15) can
+j
+P
+P
+f,t
+f,t
+be written as uj = I( s c Is,c,j ). Therefore, to support
+dynamic satellite-terrestrial spectrum sharing, the maximum
+duration constraint of satellite-terrestrial interference in epoch
+f can be expressed as
+T
+X
+
+Lemma 1: The inter-satellite handover frequency constraints (17) can be replaced by queue stabilization
+constraints.
+Proof: Based on queue update process in (20), we have
+Mc,f − Mc,f −1 ≥ mc,f .
+
+(16)
+Mc,F − Mc,1 ≥
+
+Denote the tolerable maximum inter-satellite handover
+frequency threshold as H, and then handover frequency constraint can be expressed as
+Hcf
+≤ H, ∀c, f,
+f →∞ f
+lim
+
+(17)
+
+where Hcf is the accumulated number of inter-satellite handover of satellite users in beam cell c from epochs 1 to f .
+Moreover, we have Hc1 = 0 and
+f X
+S
+X
+
+′
+
+′
+
+1 − xfs,c−1 xfs,c , ∀f ≥ 2.
+
+(18)
+
+mc,f = HcF − F H.
+
+C
+C
+X
+X
+f
+f 2
+δf = V [ (Dc − Qc ) ] +
+Mc,f mc,f ,
+c=1
+
+f,t
+f,t
+Define X = {{xfs,c }, {ys,c,b
+}, {zs,c
+}} as the beam management decisions in epoch f , consequently, the concerned beam
+management optimization problem is formulated as follows.
+
+P0 :
+C
+
+1 XX f
+(Dc − Qfc )2
+{X |∀f } F →∞ F
+c=1
+
+(19)
+
+f,t
+f,t
+s.t. xfs,c , ys,c,b
+, zs,c
+∈ {0, 1}, ∀c, f, t, s, b,
+
+(19a)
+
+lim
+
+f =1
+
+T X
+B
+X
+f,t
+xfs,c = I(
+ys,c,b
+), ∀c, f, s,
+t=1 b=1
+B
+X
+f,t
+f,t
+zs,c
+≤
+ys,c,b
+,
+b=1
+
+∀c, f, t, s,
+
+(19b)
+
+(19c)
+
+(10) − (14), (16), (17).
+The concerned beam management problem intends to maximize the long-term service satisfaction of beam cells and
+control inter-satellite handover frequency. Constraint (19a)
+f,t
+f,t
+means that variables xfs,c , ys,c,b
+, and zs,c
+are binary variables.
+Constraints (19b) and (19c) represent limitions between varif,t
+f,t
+ables xfs,c , ys,c,b
+, and zs,c
+.
+C. Problem Transformation
+
+(22)
+
+Dividing by F and using Mc,1 = 0, it can prove that queue
+M c stabilization is equivalent to the concerned maximum
+inter-satellite handover frequency constraint (17) being satisfied.
+□
+Define M f = (M1,f , . . . , MC,f ) as the vector of all virtual
+queue Mc,f , and denote the Lyapunov function L(M f ) =
+PC
+1
+2
+c=1 Mc,f . Then, denote the drift in the Lyapunov function
+2
+as ∆(f ), and it is given by ∆(f ) ≜ L(M f +1 ) − L(M f ).
+Define an auxiliary variable δf , which is given by
+
+B. Problem Formulation
+
+F
+
+F
+X
+f =1
+
+f ′ =2 s=1
+
+min
+
+(21)
+
+Summing over f ∈ {2, 3, . . . , F }, we can obtain
+f
+uf,t
+j ≤ T ⌊1 − lj ⌋, ∀j, f.
+
+t=1
+
+Hcf =
+
+5253
+
+(23)
+
+c=1
+
+where V ≥ 0 is a constant.
+Lemma 2: The objective function of problem P 0 can be
+converted into δf , and the desired algorithm minimizing δf
+can guarantee the queue stability of Mc .
+Proof: To solve the minimization problem P 0 , we apply
+the drift-plus-penalty technology and then obtain the equivalent objective function as follows [26]
+C
+X
+min ∆(f ) + V E[ (Dcf − Qfc )2 |M f ].
+
+(24)
+
+c=1
+
+Under any beam management decision X , we can obtain
+the upper bound of (24) as follows [25]
+C
+X
+∆(f ) + V E[ (Dcf − Qfc )2 |M f ] ≤ B0
+c=1
+C
+X
++ E[
+Mc,f mc,f + V (Dcf − Qfc )2 |M f ],
+
+(25)
+
+c=1
+
+PC
+where B0 is a constant and B0 ≥ 21 c=1 E[m2c,f |L(M f )].
+In this case, the minimization of (24) can be achieved by
+minimizing the right-hand-side of inequality (25) [25], [26],
+which means that problem P 0 can be solved by greedily
+minimizing the following objective function in each epoch:
+
+To cope with the complexity caused by time-averaged objective function and constraint (17), we leverage Lyapunov drift
+rule to simplify the primal problem P0 into a more tractable
+expression [25], [26]. Define a virtual queue Mc for beam
+cell c to characterize the relationship between inter-satellite
+handover frequency and handover threshold H [25], whose
+length in epoch f is denoted as Mc,f . We have
+
+Hence, the conversion of the objective function is proven.
+Next, we prove the stability of queue Mc . Since mc,f ≤ 1−H
+and Mc,f ≤ 2(1 − H), it can be inferred that
+
+Mc,f = max(Mc,f −1 + mc,f , 0), ∀c,
+(20)
+PS
+−1 f
+where mc,f = (1 − s=1 xfs,c
+xs,c ) − H and Mc,1 = 0.
+
+1X 2
+2
+2
+M − Mc,f
+−1 ≤ B0 + 2C(1 − H) .
+2 c=1 c,f
+
+C
+X
+E[
+Mc,f mc,f + V (Dcf − Qfc )2 |M f ] = E[δf |M f ]. (26)
+c=1
+
+C
+
+(27)
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+5254
+
+IEEE TRANSACTIONS ON COMMUNICATIONS, VOL. 73, NO. 7, JULY 2025
+
+2
+Summing over f ∈ {2, 3, . . . , F }, we have E(Mc,F
+) ≤
+2
+2
+2
+),
+2F (B0 + 2C(1 − H) ). Due to E(Mc,F ) ≤ E(Mc,F
+we have
+q
+(28)
+E(Mc,F ) ≤ 2F (B0 + 2C(1 − H)2 ).
+M
+
+Finally, it can be obtained that limF →∞ Fc,F = 0.
+□
+Based on the above analysis, the primal problem P 0 can be
+transformed into a series of per-epoch problems P 1 as follows
+P1 :
+min
+
+f,t
+f,t
+{{xfs,c },{ys,c,b
+},{zs,c
+}|M f ,f }
+
+δf
+
+(29)
+
+Fig. 4.
+
+Beam management problem decomposition framework.
+
+s.t. (10) − (14), (16), (19a) − (19c).
+IV. P ROBLEM D ECOMPOSITION AND B EAM
+M ANAGEMENT A LGORITHM D ESIGN
+A. Problem Decomposition
+According to [27], the performance gap between primary
+problem P0 and the optimal result of problem P1 can be
+expressed as
+1
+),
+(30)
+V
+where δf∗ is the optimal result of problem P1 , δ ∗ is the optimal
+result of problem P0 . Moreover, a large V contributes to
+minimizing the performance gap between primary problem P0
+and transformed problem P1 . However, this comes at the cost
+of relaxing inter-satellite handover frequency constraints.
+V is set to a sufficiently large value, term
+PWhen
+C
+M
+mc,f in δf can be approximately ignored. Morec,f
+c=1
+over, considering that (Dcf − Qfc )2 is convex and Dcf ≤ Qfc ,
+the objective functions of the problem P0 and P1 satisfy
+the property of diminishing returns when V is sufficiently
+large. In this case, the objective functions are submodular
+functions [28]. In, addition, constraints (10)-(13) can be
+regarded as knapsack constraints. Therefore, problems P0
+and P1 are NP-hard [28], [29], [30], and corresponding
+algorithms for solving such problems are mostly greedy.
+However, although a continuous greedy process can achieve at
+least (1 − 1e )-approximation for submodular problem [29], it
+inefficiently obtain a high-quality solution within a reasonable
+time overhead due to enormous amounts of variables and
+constraint terms as well as strong coupling between them in
+problem P1 .
+For these reasons, this part further decouples problem P1
+into three tractable sub-problems. The problem decomposition
+framework is shown in Fig. 4, and corresponding reasons
+are concluded as follows. Inter-satellite handover control is a
+core aspect of beam management approach, which requires
+the gateway station preassigning serving satellite beams to
+cells and maintaining a relatively low handover frequency.
+If the developed handover algorithm is executed in each
+epoch or iteratively invoked, it will significantly increase
+the inter-satellite handover frequency [9]. Hence, we first
+decompose an inter-satellite handover decision problem from
+problem P 1 , and then design a conditional handover triggering
+mechanism. The beam hopping design is independent of
+δf∗ ≤ δ ∗ + O(
+
+satellite-terrestrial spectrum sharing decisions in our scenario.
+Moreover, satellite-terrestrial spectrum sharing cooperation
+may be canceled when LEO satellite networks work on
+a low load state or terrestrial networks overload. Hence,
+under the given serving satellites of beam cells, problem
+P 1 are further divided into beam hopping design problem and
+satellite-terrestrial spectrum sharing problem.
+Considering the requirement of practical applications, three
+decomposed problems are only solved once in each epoch.
+In addition, the required decision space sizes of decomposed
+subproblems are far less than problem P1 , which contributes
+to obtaining desired beam management decisions with low
+complexity.
+B. Inter-Satellite Handover Decision Problem and Algorithm
+Design
+In this part, we need to pre-assign serving satellites to beam
+cells before allocating time-frequency transmission resource.
+However, since the objective function value of problem P1
+relies on beam hopping design and satellite-terrestrial spectrum sharing decisions. it cannot derive the closed-form
+solutions of inter-satellite handover, beam hopping, and
+dynamic spectrum sharing decisions due to their tightly coupled relationships. Meanwhile, referring to [5], achieving load
+balancing between LEO satellites is of great importance to
+improve the resource utilization and cell satisfaction of the
+entire system. Therefore, to control inter-satellite handover
+frequency and improve the service satisfaction of beam cells,
+the objective function δf′ for inter-satellite handover decision
+problem P2 is carefully designed based on problem P1 , which
+is expressed as
+P2 :
+min
+
+{{xfs,c }|M f ,f }
+
+δf′
+
+(31)
+
+s.t. (11), (19a).
+where
+δf′ =
+
+S
+X
+s=1
+
+PC
+V(
+
+C
+1
+f
+f
+X
+c=1 (xs,c − 2 )Qc 2
+)
++
+Mc,f mc,f ,
+PC
+f
+c=1
+c=1 Qc
+
+(32)
+
+and the first term of the right-hand-side of equation (32)
+represents the normalized weight value of satellite loads, while
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+ZHU et al.: BEAM MANAGEMENT IN LOW EARTH ORBIT SATELLITE COMMUNICATION
+
+PC
+the second term c=1 Mc,f mc,f controls inter-satellite handover frequency. Given the uncertainty in beam hopping and
+spectrum sharing decisions, the solution of problem P2 can
+achieve the tradeoff between inter-satellite handover frequency
+and network load balancing, which contributes to improving
+cell service satisfaction.
+Actually, LEO satellite load fluctuates over time due to
+random traffic arrival. If load balance strategy is performed
+in each epoch, inter-satellite handover frequency inevitably
+increases without apparent benefits. To overcome this issue,
+we propose a conditional handover triggering mechanism,
+where inter-satellite handover procedure is only executed if
+one of conditions holds. Note that inter-satellite handover procedure must be implemented when serving satellite leaves the
+visible area of a served cell. In this case, the gateway station
+requires reallocating a satellite to this beam cell. In addition,
+due to the movement of satellites, beam hopping design and
+satellite-terrestrial spectrum sharing algorithms may output
+low-quality solutions as interference situations change. The
+low-quality solution represents that LEO satellite networks has
+a low resource utilization rate when the loads of satellites are
+high. Specifically, the resource utilization rate is the average
+ratio of the occupied time-frequency-space resource and all
+available resources of all beams. Therefore, the gateway station
+is required to monitor load statuses and resource utilization
+rates of LEO satellite networks. If resource utilization rate
+is lower than preset threshold σ0 and the minimum load of
+satellite is higher than its capacity Cs , gateway station will
+automatically reallocate serving satellites to beam cells.
+Based the proposed conditional handover triggering mechanism, we further develop a proactive algorithm to solve
+problem P2 , which is shown in Algorithm 1. First, beam cells
+without serving satellite will obtain a new serving satellite.
+and the initial serving satellites of them are obtained by a
+widely used multi-attribute handover decision scheme based
+on entropy in [11], where satellite loads, remaining service
+time, and elevation angle are considered as attributes (line 214). Unfortunately, the above stage tends to load imbalance
+among satellites since it will distribute cells to satellites with
+high loads. Therefore, we further control load distributions
+and inter-satellite handover frequency based on matching
+theory (line 15-36). To enhance the exploration capacity of
+the proposal, we randomly adjust serving satellites of several
+cells (line 16). Moreover, the expected value of the objective
+function δf′ monotonically decreases by swapping matching
+operations, which ensures convergence.
+Define Cs as the set of beam cells served by satellite s, and
+Cs = {c|xfs,c = 1}. Thereby, we have Cs1 ∩Cs2 = ∅, ∀s1 , s2 ∈
+S and ∪s=1,...,S Cs = C. Define Cs = (C1 , C2 , . . . CS ), and
+then denote the objective function value δf′ under decision Cs
+as δf′ (Cs ). For any two beam cells c1 ∈ Cs1 and c2 ∈ Cs2 ,
+there are two kinds of swap operations for them. The first
+kind of swap operation converts Cs1 and Cs2 into Cs′ 1 and Cs′ 2
+by removing and adding beam cell operations (line 19-26),
+i.e., Cs′ 1 = Cs1 \ {c1 } ∪ {c2 } and Cs′ 2 = Cs2 \ {c2 } ∪ {c1 }.
+The second kind of swap operation converts Cs1 and Cs2
+into Cs′ 1 and Cs′ 2 by removing a cell from Cs1 and then
+adding it into Cs2 (line 27-34), i.e., Cs′ 1 = Cs1 \ {c1 } and
+
+5255
+
+Algorithm 1 Inter-Satellite Handover Decision Algorithm
+−1
+1: Input: M f , Qfc , H, xfs,c
+, xfs,c = 0, σf .
+2: for c = 1 : C do
+3:
+if the serving satellite can continue to serve cell c then
+−1
+4:
+xfs,c = xfs,c
+.
+5:
+Update the load of the serving satellite of cell c.
+6:
+end if
+7: end for
+8: for c = 1 : C do
+9:
+if xfs,c == 0 then
+10:
+Allocate the serving satellite by using the multi-attribute
+
+decision handover scheme based on entropy in [11].
+11:
+σf = 0.
+12:
+Update the load of the serving satellite of cell c.
+13:
+end if
+14: end for
+PC
+15: if σf == 0 or (σf < σ0 and min( c=1 xfs,c Qfc ) > Cs ) then
+s
+
+Randomly adjust serving satellites of several cells.
+repeat
+Construct Cs and calculate δf′ (Cs ) based on current
+{xfs,c }.
+19:
+for c1 = 1 : C do
+20:
+for c2 = 1 : C do
+21:
+Select a first kind swap and obtain δf′ (Cs′ ).
+22:
+if δf′ (Cs′ ) < δf′ (Cs ) then
+23:
+Update xfs,c and δf′ (Cs ).
+24:
+end if
+25:
+end for
+26:
+end for
+27:
+for c = 1 : C do
+28:
+for s = 1 : S do
+29:
+Select a second kind swap and obtain δf′ (Cs′ ).
+30:
+if δf′ (Cs′ ) < δf′ (Cs ) then
+31:
+Update xfs,c and δf′ (Cs ).
+32:
+end if
+33:
+end for
+34:
+end for
+35:
+until the number of iterations reaches N ′ or all δf′ (Cs′ ) ≥
+δf′ (Cs )
+36: end if
+37: Output: {xfs,c }.
+16:
+17:
+18:
+
+Cs′ 2 = Cs2 ∪ {c1 }. The resulted vector after once swap operation is denoted as Cs′ = (C1 , . . . , Cs′ 1 , Cs′ 2 , . . . , CS ). In swap
+matching stage, a swap is accepted only if Cs′ 1 and Cs′ 2
+satisfy constraints (11) and δf′ (Cs′ ) < δf′ (Cs ) [13]. Finally,
+Algorithm 1 outputs serving relationship {xfs,c } when it cannot
+find a feasible swap operation or the number of iterations
+reaches threshold N ′ . In addition, according to Lyapunov
+optimization theory [26], the inter-satellite handover decisions
+outputted by Algorithm 1 can satisfy the inter-satellite handover frequency constraint (17) by utilizing the constructed
+virtual queue Mc and minimizing the objective function of
+problem P2 .
+C. Beam Hopping Design Problem and Algorithm Design
+Under the given serving relationship xfs,c , inter-satellite
+handover frequencies of beam cells are deterministic values.
+Therefore, the objective function δf of problem P 1 degrades
+PC
+into c=1 (Dcf − Qfc )2 , whose solution dimensions are proportional to the number of available beams, beam cells, and
+time slots in each epoch. Since such large solution dimensions
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+5256
+
+IEEE TRANSACTIONS ON COMMUNICATIONS, VOL. 73, NO. 7, JULY 2025
+
+significantly increase the complexity of obtaining a proper
+beam hopping
+PCdesign [13], we solve problem P 1 by greedily
+minimizing c=1 (Dcf −Qfc )2 in each slot in sequence. Define
+Dcf,t as the transmission data size of cell c in the t-th slot of
+epoch f via the exclusive spectrum of LEO satellite networks,
+which can be calculated as
+Dcf,t =
+
+C X
+B
+X
+f,t
+ys,c,b
+W1 Tslot log(1 + SN Rcf ).
+
+(33)
+
+s=1 b=1
+
+Denote the remaining data queue length of beam cell c of the
+f,t+1
+t-th slot of epoch f as Qf,t
+= max(0, Qf,t
+c , where Qc
+c −
+f,t
+f,1
+f
+Dc ) and Qc = Qc . Then, the beam hopping design
+problem in slot t can be expressed as
+P3 :
+min
+
+C
+X
+2
+(Dcf,t − Qf,t
+c )
+
+f,t
+{{ys,c,b
+}|xfs,c ,Qf,t
+c ,f,t} c=1
+
+(34)
+
+s.t. (10) − (14), (19a), (19b).
+Since the inter-beam interference situation can be regarded
+as fixed in each epoch with a short duration, we can construct
+a weighted conflict graph for all slots in an epoch. Define Vf
+as the vertex set of conflict graph in epoch f , and a vertex
+f,t
+represents a feasible ys,c,b
+of a cell. There are bound to B
+vertices corresponding to a cell, representing that a cell can
+be served by any beam of the serving satellite. Define Ef as
+the edge set in conflict graph. If an edge connects two vertices
+v1 and v2 , it indicates that two beam hopping decisions
+ysf,t
+, ysf,t
+corresponding to vertices v1 and v2 violate
+1 ,c1 ,b1
+2 ,c2 ,b2
+a constraint term. Remarkably, the situations in which an edge
+appears can be summarized into three categories.
+• Two vertices represent the same cell, which violates
+constraint (10).
+• Two vertices represent that two cells are simultaneously
+served by a beam, which violates constraints (12).
+• Severe inter-beam interference occurs, which violates
+constraint (14).
+Fig. 5 presents an example of a LEO satellite network
+scenario and corresponding conflict graph, where satellite
+1 serves cells 1 and 2, and satellite 2 serves cells 3 and 4. Beam
+1 and 2 operate on different antenna polarization methods and
+the number of vertices in set Vf is 8. An edge connects vertices
+1 and 2 since they all represent cell 1. Severe inter-beam
+interference occurs when cells 1 and 3 simultaneously obtain
+service from beams with the same polarization configuration.
+Hence, vertex 1 directly connects with vertex 5, and vertex
+2 connects with vertex 6.
+The weight of vertex v corresponding to beam cell c is
+calculated by a subtraction operation between a constant and
+2
+term (Dcf,t − Qf,t
+c ) , which is given by
+2
+f,t
+f,t 2
+wv = (W1 Tslot log(1 + SN Rcf ))2 +(Qf,t
+c ) − (Dc −Qc ) .
+(35)
+
+The weighted maximum independent set (WMIS) problem
+aims to search a subset of vertices with the maximum weight
+sum, where any two vertices in subset are disconnected [31].
+
+Fig. 5. An example of a network scenario and corresponding conflict graph.
+
+Algorithm 2 Beam Hopping Design Algorithm
+1: Input: xfs,c , T , Qfc , Result = ∅.
+2: Construct a conflict graph (Vf , Ef ), Qf,1
+= Q′c,f = Qfc .
+c
+3: for t=1:T do
+4:
+Set available state f = 01×Vf | and V ′ = ∅.
+5:
+Set an inaccessible state f (k) = 1 for all vertices with
+
+empty queue.
+Calculate the weight wv and weight radio ρv for all vertices.
+According to descending order of weight radio ρv , visit all
+vertices.
+8:
+for k = 1 : |Vf | do
+9:
+if f (k) == 0 then
+10:
+Find the vertex vk corresponding to the sorted index
+k.
+11:
+if V ′ == ∅ or edge (vk , vk′ ) ̸∈ Ef , ∀vk′ ∈ V ′ then
+f,t
+12:
+Result ← Result ∪ {ys,c,b
+}.
+′
+′
+13:
+V ← V ∪ {vk }.
+14:
+Set inaccessible states f (k) = 1 for all vertices
+in Vvk .
+15:
+Recalculate the weight ratios for the remaining
+vertices and reorder vertices.
+16:
+end if
+17:
+Update Qf,t
+and set Q′c,f = Qf,t
+c .
+c
+18:
+end if
+19:
+end for
+20: end for
+21: Output: Result.
+6:
+7:
+
+Specifically, since vertices with the same serving beam are
+connected in conflict graph, vertices in WMIS also satisfy
+the maximum serving beam number constraint (13). Hence,
+vertices in WMIS satisfy all constraints of problem P3 .
+In addition, the maximum weight sum of WMIS corresponds
+to the minimum objective function value of problem P3 .
+Therefore, problem P3 can be converted into a WMIS problem
+based on the built conflict graph [32].
+As shown in Algorithm 2, we propose a low complexity
+greedy search algorithm to solve the transformed WMIS problem. We first set inaccessible states for vertices with empty
+data queue (line 4-5), and then calculate weight P
+ratios ρv for
+rest accessible vertices, where ρv = wv /(wv + v′ ∈Vv (1 −
+f (v))wv′ ), and Vv is the set of accessible vertices adjacent
+to vertex v, f (v) is the accessibility status of vertex v
+(line 6). Next, accessible vertices are visited according to the
+descending order of weight ratio ρv (line 7-19). In this stage,
+when an accessible vertex is recorded, its adjacent vertices are
+set as inaccessible states and then the weight ratios ρv for the
+remaining vertices are recalculated. (line 11-16). Meanwhile,
+we calculate the Qf,t
+of cells obtaining service (line 17).
+c
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+ZHU et al.: BEAM MANAGEMENT IN LOW EARTH ORBIT SATELLITE COMMUNICATION
+
+When all vertices are set to inaccessible states, we update
+the weight and accessibility of vertices and then repeat the
+above process for next slot. Finally, Algorithm 2 outputs beam
+f,t
+hopping decisions {ys,c,b
+} and the rest data queue length Q′c,f .
+D. Satellite-Terrestrial Dynamic Spectrum Sharing Problem
+and Algorithm Design
+′
+Define Dc,f
+as the transmission data size of beam cell c in
+epoch f via the spectrum of terrestrial networks, and it can
+be calculated as
+′
+Dc,f
+=
+
+S X
+T
+X
+
+f,t
+zs,c
+(W2 − Wcenter )Tslot log(1 + SN Rcf ),
+
+s=1 t=1
+
+(36)
+where Wcenter is the bandwidth of terrestrial cell center.
+In order to achieve high spectral efficiency and minimize the
+objective function of problem P 1 , an optimization problem P4
+based on the given serving satellite and beam hopping design
+is formulated as follows.
+P4 :
+min
+
+f,t
+f,t
+{{zs,c
+}|Q′c,f ,xfs,c ,ys,c,b
+,f }
+
+C
+X
+′
+(Dc,f
+− Q′c,f )2
+
+(37)
+
+c=1
+
+s.t. (16), (19a), (19c).
+Although problem P 4 can be converted into an integer
+programming problem, it confronts an unacceptable computational time cost in directly applying the classical branch
+and bound method or solvers [32]. To address this issue,
+we develop a low complexity satellite-terrestrial spectrum
+sharing algorithm to solve problem P 4 , which combines with
+improved binary sparrow search algorithm in [33] and greedy
+search algorithm, whose detail is summarized in Algorithm 3.
+f,t
+of beam cells with an empty
+Firstly, decision variables zs,c
+queue are set to 0, and the dimension of a sparrow equals the
+f,t
+, which contributes to reducing
+number of rest variables zs,c
+the decision space size. Since chaotic mapping has powerful
+capacities in increasing exploration capacity, we adopt tent
+chaotic strategy to initialize sparrows with continuous values
+between 0 and 1. Define Si,j as the value of the j-th continuous variable of the i-th sparrow, and corresponding binary
+′
+value Si,j
+is obtained by inputting Si,j to a s-shape function,
+which is given by [34]
+
+1
+> µ,
+1, if 1+e−2S
+′
+i,j
+(38)
+Si,j =
+0, otherwise,
+where µ is a random value between 0 and 1. Moreover, the
+quality of sparrow i is evaluated by its fitness value Fi , which
+can be calculated as
+(P
+C
+′
+′
+2
+c=1 Ωc − (Dc,f − Qc,f ) , if constraint (16) holds,
+Fi = PC
+′
+2
+otherwise,
+c=1 Ωc − (Qc,f ) ,
+(39)
+2
+
+where Ωc = Q′c,f +[(W2 −Wcenter )Tslot log(1+SN Rcf )T ]2 .
+Specifically, if the solution violates satellite-terrestrial interference constraint (16), corresponding fitness value is set to
+
+5257
+
+an extremely low value, which can guarantee the obtained
+spectrum sharing solution is feasible.
+Next, we sort sparrows according to the descent order of fitness value and then divide them into producers and scroungers.
+Meanwhile, several sparrows are randomly selected as spectators. The update processes of producers, scroungers, and
+spectators are consistent with the traditional sparrow search
+algorithm in [33]. Moreover, our proposal adopts additional
+local search (line 7-22) and adaptive crossover (line 2330) steps to enhance the exploit capacity. Local search is
+executed by performing mutation operations for the sparrow
+with maximum fitness value. Adaptive crossover procedure is
+worked on the half of sparrows with worse fitness value. After
+the improved sparrow search stage, we subsequently employ
+a greedy search stage to increase spectral efficiency (line 35f,t
+37). In this stage, we set zs,c
+= 1 if constraint (16) still holds
+f,t
+after performing value mutation operation on zs,c
+.
+E. Complexity Analysis
+1) Traditional Methods: To simplify analysis, we ignore the
+influence of constraint terms in this part. The variable number
+V of problem P1 , P2 , P3 and P4 are SC + SCBT + SCT ,
+SC, SCBT and SCT , respectively. Referring to [35], the
+complexity of traditional methods, i.e., solvers or branch
+and bound methods, exponentially increases with numbers of
+variable size, which can be expressed as O(2V ).
+2) Our Proposal: In inter-satellite handover decision
+algorithm (Algorithm 1), the maximum number of the first and
+the second swap operations are C(C−1) and CS, respectively.
+Due to S < C, the complexity of Algorithm 1 is O(N ′ C 2 ),
+where N ′ is the maximum iteration number. The complexity
+of beam hopping design algorithm (Algorithm 2) mainly relies
+on checking the accessible state of vertices and their adjacent
+vertices in all slots. The maximum number of vertices and their
+adjacent vertices are BC and BC(BC − 1)/2, respectively.
+Hence, the complexity of Algorithm 2 is O(T B 2 C 2 ). For
+satellite-terrestrial spectrum sharing algorithm (Algorithm 3),
+the maximum number of iterations and the population size of
+sparrows are N ′′ and Npop , respectively. In each iteration,
+the numbers of the sparrow update and fitness calculation
+operations are less than 2.5Npop . In addition, the number
+of adaptive crossover operations is N ′′′ , and N ′′′ < Npop .
+f,t
+Moreover, the last greedy search step requires search all zs,c
+and corresponding number is SB. Hence, the complexity
+of Algorithm 3 is O(N ′′ Npop + SB). Based on the above
+analysis, the complexity of the proposed beam management
+approach is O(N ′ C 2 + T B 2 C 2 + N ′′ Npop ).
+V. S IMULATION R ESULTS AND A NALYSIS
+A. Simulation Parameters and Performance Metrics
+To evaluate the performances of the proposed beam management approach, we conduct massive simulations in LEO
+satellite network scenarios with 1200 LEO satellites, 20 earthfixed beam cells. Satellites are evenly distributed in 30 orbit
+planes, whose inclination and altitude are 53◦ and 550 km,
+respectively. Moreover, beam cells are generated in a rectangular area and arranged in four rows and five columns, where
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+5258
+
+IEEE TRANSACTIONS ON COMMUNICATIONS, VOL. 73, NO. 7, JULY 2025
+
+Algorithm 3 Satellite-Terrestrial Spectrum Sharing Algorithm
+
+TABLE II
+
+f,t
+1: Set zs,c
+= 0 for all cells with an empty queue Q′c,f .
+f,t
+f
+2: Input: xs,c , ys,c,b , the maximum number of iterations N ′′ , the
+
+S IMULATION PARAMETER S ETTING
+
+number of local search iterations N ′′′ , population size Npop ,
+sparrow size Zs , the number of producers Pd , the number
+of spectators Sd .
+3: Initialize sparrow population by using tent chaotic strategy.
+f,t
+4: Obtain binary zs,c
+based on (38) and record the global binary
+optimal solution Sg and its fitness f (Sg ).
+5: while i < N ′′ do
+6:
+Sort sparrows according to the descent order of fitness, find
+the current best individual Sb .
+7:
+while j < N ′′′ do
+8:
+Sb′ = Sb .
+9:
+for j = 1 : 4 do
+10:
+Randomly select a elements sb in the best sparrow
+Sb′ .
+11:
+sb = 1- sb .
+12:
+end for
+f,t
+13:
+Obtain the binary solution zs,c
+of Sb′ based on (38).
+14:
+Calculate fitness f (Sb′ ).
+15:
+if f (Sb′ ) > f (Sb ) then
+16:
+Sb = Sb′ .
+17:
+if f (Sb′ ) > f (Sg ) then
+18:
+Update global binary optimal solution Sg .
+19:
+f (Sg ) = f (Sb′ ).
+20:
+end if
+21:
+end if
+22:
+end while
+0.1
+23:
+Calculate υ = 0.55 − 1+exp(5−10∗i/N
+′′ )
+24:
+for j = Npop /2 + 1 : Npop do.
+25:
+if rand(1) < υ then
+26:
+Generate a randomly integer ζ in {1, 2, 3}.
+27:
+Randomly select ζ elements in sparrow j.
+28:
+For each selected element sj (ζ), we have sj (ζ) =
+1 − sj (ζ).
+29:
+end if
+30:
+end for
+31:
+Update all sparrows’ location according to [33].
+32:
+Obtain the binary solution of all sparrow based on (38).
+33:
+If the fitness of new sparrows are better than f (Sg ), update
+f (Sg ) and global binary optimal solution Sg .
+34: end while
+35: for i = 1 : Zs do
+f,t
+36:
+Set the i-th zs,c
+as 1 if constraint (16) can be met.
+37: end for
+f,t
+38: Output: {zs,c
+}.
+
+each cell is hexagonal, and the inter-cell distance is 34.6 km.
+The first beam cell locates at (30◦ E, 20◦ N ).
+Referring to [36], several companies such as Telesat,
+OneWeb, SpaceX, and Amazon have claimed that their satellites intend to use the Ka band (17.7-20.2 GHz) for downlink
+transmission. Specifically, Starlink already has on-orbit LEO
+satellites operating in the Ka band. Although current terrestrial
+base stations do not use the Ka band, 3GPP has allocated
+available frequency bands for terrestrial networks in the Ka
+band and has discussed potential co-existence schemes for
+satellite and terrestrial networks [37]. Therefore, LEO satellite
+and terrestrial networks operate at 20 GHz in our simulations.
+The bandwidth of LEO satellites and terrestrial networks
+are 200 MHz and 100 MHz, respectively. Specifically, the
+bandwidth of terrestrial cell center is 20 MHz. Moreover, two
+orthogonal antenna polarization configurations are considered.
+
+TABLE III
+N ORMALIZED T RANSMISSION D EMAND A MONG B EAM C ELLS
+
+Terrestrial users are handheld terminals with peak gain 0 dB,
+and the antenna models of LEO satellites and satellite users
+refer to [20] and [38], respectively. Under the given base
+station clustering method described in Section II-B.3, the
+number of base station cluster equals to beam cell number,
+and their center locations are aligned with the centers of the
+beam cells. Transmission load ljf of base station clusters are
+randomly generated in [0.4, 0.6]. The channel model adopts
+the model in 3GPP 38.811 [38].
+Referring to [20] and [21], we set the INR threshold Igth to −10 dB for satellite-terrestrial scenarios to
+mitigate inter-network interference. Considering that the
+acceptable intra-network interference is generally higher than
+inter-network interference cases, we set the inter-beam INR
+threshold Isth to -5 dB. Here, the minimum elevation angle
+between LEO satellites and satellite users is 35◦ . To simplify
+simulations, all beam cells are consistently served by two
+satellites with the longest service time, and target SNR of
+all beam cells is set to 12 dB. There are 200 time slots
+per epoch with a duration of 200 ms, and simulations last
+66.67 minutes for evaluating long-term beam management
+performances. The tolerable maximum inter-satellite handover
+frequency threshold H is set to 0.004. Main parameters and the
+normalized average demand among beam cells are summarized
+in Table II and III, respectively.
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+ZHU et al.: BEAM MANAGEMENT IN LOW EARTH ORBIT SATELLITE COMMUNICATION
+
+5259
+
+Fig. 6. The figures are the results of the performance of beam hopping design algorithms, where (a) presents the original objective value of problem P o ,
+(b) is the result of average data queue length of beam cells, and (c) shows the average inter-satellite handover frequency of all beam cells.
+
+Fig. 7. The figures are the results of the performance of inter-satellite handover decision algorithms, where (a) presents the objective value of problem P o ,
+(b) is the result of average data queue length of beam cells, and (c) shows the average inter-satellite handover frequency of all beam cells.
+
+Fig. 8. The figures are the results of the performance of satellite-terrestrial spectrum sharing algorithms, where (a) presents the objective value of problem
+P o , (b) is the result of average data queue length of beam cells, and (c) shows the average inter-satellite handover frequency of all beam cells.
+
+The performance metrics include queue length, intersatellite handover frequency, objective value of problem
+P0 , and delay. To succinctly characterize the performance
+algorithms over time in figures, we take the average
+for queue length, handover frequency, and delay metrics
+among all cells. Moreover, the average delay is calculated by dividing the average queue length by the network
+transmission rate. In addition, the location information of
+constructed LEO satellite networks is obtained by AGI
+Systems Tool Kit [39]. Specifically, all algorithms are
+executed on a simulation platform with Intel Core i713700KF processor and 96 GB of memory, and MOSEK
+solver is used to solve the problem P3 for a benchmark
+scheme.
+
+B. The Performance Comparisons With Existing Methods
+In this part, we first evaluate the performance of the proposed beam hopping design algorithm. Here, three baselines
+are considered as follows.
+• Greedy scheme: The gateway station greedily allocates
+serving beams to cells with large data queue [40].
+• MOSEK+Greedy: The beam hopping design is obtained
+based on MOSEK solver and greedy search step in [5].
+• Swap matching: In this scheme, the initial beam hopping
+decision is obtained by greedy scheme, and then the
+serving beams of two cells will be continuously swapped
+if a swap operation can reduce the objective function
+value of problem P3 [13].
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+5260
+
+IEEE TRANSACTIONS ON COMMUNICATIONS, VOL. 73, NO. 7, JULY 2025
+
+Fig. 9. The figures display the performance results of average delay, where (a) compares different beam hopping algorithms, (b) is the result of inter-satellite
+handover schemes, and (c) presents the comparisons between dynamic spectrum sharing algorithms.
+
+TABLE IV
+T HE C OMPARISON OF THE AVERAGE E XECUTION T IME
+OF B EAM H OPPING A LGORITHMS
+
+Considering that the substantial computational complexity
+of the baseline based on MOSEK solver, the number of beams
+per satellite is set to 4, and resource utilization rate threshold
+σ0 is set to 0.9. The average sum of arrival data rate of all
+beam cells is 6.52 Gbps and V = 100. In Fig. 6 (a) and (b),
+it can be seen that the beam hopping design algorithm based on
+MOSEK solver and greedy search achieves the highest spectral
+efficiency. However, computational complexity is a core factor
+for practical applications. Due to exponential complexity of
+MOSEK solver [35], it is hard to be deployed in practical LEO
+satellite networks. Since LEO satellites have excellent spatial
+isolation in the first 3000 epochs, the performance curves of
+our proposal and greedy algorithm are tightly close to each
+other. With interference situations exacerbating, our proposal
+can reduce the average data queue length and the objective
+value of problem P0 by 13.43% and 30.68% compared with
+swap matching algorithm at the 20000-th epoch, respectively.
+Moreover, as shown in Fig. 6 (c), the beam hopping design outputted by the baseline based on the MOSEK solver and greedy
+search violates inter-satellite handover frequency constraint,
+whereas our proposal satisfies this constraint and achieves the
+minimum handover frequency.
+The comparison of the average execution time of beam
+hopping algorithms is shown in Table. IV. It can be observed
+that the proposed beam hopping algorithm achieves the lowest
+execution time. Specifically, compared to the baseline based
+on MOSEK solver, our proposal reduces the average execution
+time by two orders of magnitude. Moreover, it only requires an
+average of 46.58 ms to make beam hopping decisions, which
+is significantly shorter than the duration of a scheduling epoch.
+Therefore, our proposal with low complexity is more suitable
+for practical LEO satellite networks.
+Then, we evaluate the performance of the proposed
+inter-satellite handover decision algorithm, where three benchmark schemes are adopted as follows.
+• Load Balance: The visible satellite with the minimum
+traffic load is allocated to beam cells [5].
+
+Fig. 10. The performance result of the static spectrum sharing strategy
+between LEO satellite networks and terrestrial networks.
+
+• Entropy: Inter-satellite handover procedure is implemented by a multi-attribute handover decision scheme
+based on entropy in [11].
+• Cell clustering: Cells are distributed across satellites
+while maximizing sufficient geographical separation
+between cells [41].
+Specifically, inter-satellite handover procedures of benchmark
+schemes are only triggered when network topology changes.
+For a fair comparison, benchmark schemes and our proposal
+adopt the proposed beam hopping deign algorithm to formulate
+beam hopping design, and satellite-terrestrial spectrum sharing
+operations are ignored in this stage. In addition, the number
+of beams per satellite is set to 8, and resource utilization
+rate threshold σ0 is set to 0.6 due to increased inter-beam
+interference. The average sum of arrival data rate of all beam
+cells is 10.57 Gbps and V = 100. Since LEO satellites
+can serve beam cells within a long duration, random traffic
+arrival of cells leads to load imbalance among satellites.
+A short data queue length level means that LEO satellites
+have the capacity to transmit more data under the given
+spectrum resource. Fig. 7 (a) and (b) illustrate that our proposal
+surpasses benchmark schemes. Specifically, the objective value
+of problem P o and average beam cell data queue length
+of our proposal are reduced 76.18% and 49.45% compared
+with cell clustering strategy, which demonstrates that LEO
+satellite networks proactively trigger inter-satellite handover
+procedure contributing to high spectral efficiency. As shown
+in Fig. 7 (c), our proposal obtains a better performance at the
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+ZHU et al.: BEAM MANAGEMENT IN LOW EARTH ORBIT SATELLITE COMMUNICATION
+
+5261
+
+Fig. 11. The performance of our proposal under different the average sum of arrival data rate, where (a) presents the original objective value of problem
+P o , (b) is the result of average data queue length of beam cells, and (c) shows the average inter-satellite handover frequency of all beam cells.
+
+cost of handover frequency. Remarkably, our proposal satisfies
+inter-satellite handover frequency constraint.
+Later on, we present the performance evaluation result of
+the dynamic satellite-terrestrial spectrum sharing algorithm of
+spot beams, where the average sum of arrival data rate of all
+beam cells is 11.871 Gbps and V = 100, and three baselines
+are considered.
+f,t
+=
+• Greedy scheme: The gateway station greedily sets zs,c
+1 for beam cells with large data queue lengths [40].
+• GA: Problem P 4 is solved by genetic algorithm [42].
+• BWO: Problem P 4 is solved by binary whale optimization algorithm in [43].
+
+Fig. 8 (a) illustrates the performance comparison result of the
+concerned objective value of problem P o . It can be seen that
+our proposal outperforms baselines and obtains a high service
+satisfaction. As shown in Fig. 8 (b), our proposal reduces
+the average data queue length by over 23% compared with
+benchmark schemes. Fig. 8 (c) presents the result of average
+inter-satellite handover frequency. Specifically, our proposal
+satisfies the inter-satellite handover frequency constraint and
+achieves the minimum handover frequency at the 20000th epoch. Hence, the proposed satellite-terrestrial spectrum
+sharing algorithm can significantly improve spectral efficiency.
+Subsequently, the average delay comparisons between our
+proposal and benchmark schemes are shown in Fig. 9. It can
+be observed that the trends of average delay closely align with
+those of average queue lengths. Specifically, compared to the
+inter-satellite handover scheme based on cell clustering, our
+proposal can reduce the average delay by over 50%, which
+verifies that our proposal can significantly improve the quality
+of services.
+Finally, the performance result of the proposed static spectrum sharing mechanism between wide beams and terrestrial
+networks is illustrated in Fig. 10. In simulations, 32400 terrestrial cells are considered, and the radius of terrestrial
+cell is set to 500 m. Moreover, the area of a cell center
+occupies 1/3 of the total area of a terrestrial cell. When
+satellite users are located 1 km away from the nearest base
+station, our proposal achieves comparable SINR performance
+to that of terrestrial cell edge users, which can meet the
+requirements for satellite-ground communications. Moreover,
+the satellite-terrestrial interference under our proposal is
+
+Fig. 12.
+The performance of our proposal under different V , where
+(a) shows the average inter-satellite handover frequency of all beam cells,
+and (b) presents the objective value of problem P o .
+
+effectively constrained and maintained at an acceptable level
+for both terrestrial and satellite networks [20], [21].
+C. Performance Validation of the Proposed Method
+Subsequently, we evaluate the performance of the proposed
+beam management approach under different arrival data rates,
+and set V = 100. In Fig. 11 (a) and (b), we can reasonably
+conclude that our proposal can stabilize the data queue of
+beam cells when the arrival date rate is less than 10.99 Gbps.
+Hence, simulation results prove that our proposal can achieve
+high spectral efficiency with low computational complexity.
+In addition, with the network load increasing, the average
+inter-satellite handover frequency slightly declines. This is
+because a heavy network load usually leads to a high resource
+utilization rate, which lowers the invoking frequency of the
+proposed inter-satellite handover decision algorithm.
+Finally, we investigate the influence of parameter V on
+inter-satellite handover frequency and objective value of problem P o . Moreover, we ignore satellite-terrestrial spectrum
+sharing operations, and we set the network to operate under
+full buffer condition. According to Fig. 12, it can be observed
+that a larger V corresponds to a higher inter-satellite handover
+frequency. The reason for this phenomenon is that a large V
+forces the LEO satellite networks to pay more attention to
+control load distributions among satellites, whereas the effect
+of handover frequency constraint becomes weakened.
+VI. C ONCLUSION
+For a high service satisfaction with low inter-satellite
+handover frequency, this article has studied the long-term
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+5262
+
+IEEE TRANSACTIONS ON COMMUNICATIONS, VOL. 73, NO. 7, JULY 2025
+
+beam management approach for LEO satellite networks with
+dynamic topology, time-varying loads and complex interbeam/satellite-terrestrial interference. To overcome the issue
+caused by complex interference situations, we first proposed
+interference mitigation strategies to simplify interference analysis and support spectrum sharing. Since the concerned beam
+management problem considers long-term service satisfaction
+and inter-satellite handover frequency constraints, we adopted
+Lyapunov drift to transform the primal problem into a series
+of per-epoch problems. Considering that the transformed problem was NP-hard, we have further decomposed it into three
+subproblems, including inter-satellite handover decision problem, beam hopping design problem, and satellite-terrestrial
+spectrum sharing problem. Subsequently, conditional handover
+triggering mechanism and inter-satellite handover algorithm
+have been designed to control the handover frequency and
+load distributions among LEO satellites. Based on the proposed interference mitigation strategies, we have designed
+low-complexity beam hopping design and satellite-terrestrial
+spectrum sharing algorithms, contributing to high service satisfaction and spectral efficiency. Finally, the simulation results
+have verified that the proposed beam management approach
+achieved a better average data queue length, average delay,
+and service satisfaction than benchmark schemes. Meanwhile,
+our proposal satisfied the maximum inter-satellite handover
+frequency constraints. However, since our proposal is a heuristic approach, the accurate optimality gap between the original
+problem and the decomposed problem will be conducted in
+our future work.
+R EFERENCES
+[1] A. Ivanov, R. Bychkov, and E. Tcatcorin, “Spatial resource management in LEO satellite,” IEEE Trans. Veh. Technol., vol. 69, no. 12,
+pp. 15623–15632, Dec. 2020.
+[2] M. Vaezi et al., “Cellular, wide-area, and non-terrestrial IoT: A survey
+on 5G advances and the road toward 6G,” IEEE Commun. Surveys Tuts.,
+vol. 24, no. 2, pp. 1117–1174, 2nd Quart., 2022.
+[3] J. Zhu, Y. Sun, and M. Peng, “Timing advance estimation in low Earth
+orbit satellite networks,” IEEE Trans. Veh. Technol., vol. 73, no. 3,
+pp. 4366–4382, Mar. 2024.
+[4] F. Wang, D. Jiang, Z. Wang, J. Chen, and T. Q. S. Quek, “Seamless
+handover in LEO based non-terrestrial networks: Service continuity and
+optimization,” IEEE Trans. Commun., vol. 71, no. 2, pp. 1008–1023,
+Feb. 2023.
+[5] Z. Lin, Z. Ni, L. Kuang, C. Jiang, and Z. Huang, “Multi-satellite beam
+hopping based on load balancing and interference avoidance for NGSO
+satellite communication systems,” IEEE Trans. Commun., vol. 71, no. 1,
+pp. 282–295, Jan. 2023.
+[6] S. Kim, E. Visotsky, P. Moorut, K. Bechta, A. Ghosh, and C. Dietrich,
+“Coexistence of 5G with the incumbents in the 28 and 70 GHz
+bands,” IEEE J. Sel. Areas Commun., vol. 35, no. 6, pp. 1254–1268,
+Jun. 2017.
+[7] B. Yang, Y. Wu, X. Chu, and G. Song, “Seamless handover in softwaredefined satellite networking,” IEEE Commun. Lett., vol. 20, no. 9,
+pp. 1768–1771, Sep. 2016.
+[8] Z. Wu, F. Jin, J. Luo, Y. Fu, J. Shan, and G. Hu, “A graph-based satellite
+handover framework for LEO satellite communication networks,” IEEE
+Commun. Lett., vol. 20, no. 8, pp. 1547–1550, Aug. 2016.
+[9] A. Al-Hourani, “Session duration between handovers in dense LEO
+satellite networks,” IEEE Wireless Commun. Lett., vol. 10, no. 12,
+pp. 2810–2814, Dec. 2021.
+[10] L. Feng, Y. Liu, L. Wu, Z. Zhang, and J. Dang, “A satellite handover
+strategy based on MIMO technology in LEO satellite networks,” IEEE
+Commun. Lett., vol. 24, no. 7, pp. 1505–1509, Jul. 2020.
+
+[11] S. Zhang, A. Liu, and X. Liang, “A multi-objective satellite handover
+strategy based on entropy in Leo satellite communications,” in Proc.
+IEEE 6th Int. Conf. Comput. Commun. (ICCC), Chengdu, China,
+Feb. 2020, pp. 723–728.
+[12] S. Zhang, A. Liu, C. Han, X. Ding, and X. Liang, “A network-flowsbased satellite handover strategy for LEO satellite networks,” IEEE
+Wireless Commun. Lett., vol. 10, no. 12, pp. 2669–2673, Dec. 2021.
+[13] A. Wang, L. Lei, E. Lagunas, A. I. Pérez-Neira, S. Chatzinotas, and
+B. Ottersten, “Joint optimization of beam-hopping design and NOMAassisted transmission for flexible satellite systems,” IEEE Trans. Wireless
+Commun., vol. 21, no. 10, pp. 8846–8858, Oct. 2022.
+[14] C. Zhang, X. Zhao, and G. Zhang, “Joint precoding schemes for flexible
+resource allocation in high throughput satellite systems based on beam
+hopping,” China Commun., vol. 18, no. 9, pp. 48–61, Sep. 2021.
+[15] T. Li, R. Yao, Y. Fan, X. Zuo, and L. Jiang, “Multiobjective optimization
+for beam hopping and power allocation in dual satellite cooperative
+transmission networks,” IEEE Syst. J., vol. 17, no. 3, pp. 3870–3881,
+Sep. 2023, doi: 10.1109/JSYST.2023.3269442.
+[16] C. Zhang, C. Jiang, L. Kuang, J. Jin, Y. He, and Z. Han, “Spatial
+spectrum sharing for satellite and terrestrial communication networks,”
+IEEE Trans. Aerosp. Electron. Syst., vol. 55, no. 3, pp. 1075–1089,
+Jun. 2019.
+[17] J. Du, C. Jiang, H. Zhang, Y. Ren, and M. Guizani, “Auction design and
+analysis for SDN-based traffic offloading in hybrid satellite-terrestrial
+networks,” IEEE J. Sel. Areas Commun., vol. 36, no. 10, pp. 2202–2217,
+Oct. 2018.
+[18] Y. Zhang, H. Zhang, H. Zhou, K. Long, and G. K. Karagiannidis,
+“Resource allocation in terrestrial-satellite-based next generation multiple access networks with interference cooperation,” IEEE J. Sel. Areas
+Commun., vol. 40, no. 4, pp. 1210–1221, Apr. 2022.
+[19] S. Chen, S. Sun, D. Miao, T. Shi, and Y. Cui, “The trends, challenges and
+key technologies of beam-space multiplexing in the integrated terrestrialsatellite communication for B5G and 6G,” IEEE Wireless Commun.,
+vol. 30, no. 6, pp. 77–86, Dec. 2022, doi: 10.1109/MWC.004.2200085.
+[20] SpaceX. SpaceX Analysis of the Effect of Terrestrial Mobile Deployment
+on NGSO FSS Downlink Operations. Accessed: Dec. 12, 2024. [Online].
+Available: https://www.starlink.com/updates
+[21] RKF Engineering Solutions. Assessment of Feasibility of Coexistence
+Between NGSO FSS Earth Stations and 5G Operations in the 12.2–
+12.7 GHz Band. Accessed: Dec. 12, 2024. [Online]. Available: https://
+5gfor12ghz.com/wp-content/uploads/2021/05/AS-FILED-Comments-ofRS-Access-Apx.-A-RKF-Engineering-Technical-Study-5.7.21.pdf
+[22] Study on New Radio Access Technology Physical Layer Aspects,
+document 38.802, 3GPP, Sophia Antipolis, France, 2017.
+[23] C. Yao, C. Yang, and Z. Xiong, “Energy-saving predictive resource
+planning and allocation,” IEEE Trans. Commun., vol. 64, no. 12,
+pp. 5078–5095, Dec. 2016.
+[24] X. Wang, B. Lyu, C. Guo, J. Xu, and M. Zukerman, “A base station
+sleeping strategy in heterogeneous cellular networks based on user
+traffic prediction,” IEEE Trans. Green Commun. Netw., vol. 8, no. 1,
+pp. 134–149, Mar. 2024, doi: 10.1109/TGCN.2023.3324486.
+[25] L. Feng, A. Ali, M. Iqbal, A. K. Bashir, S. A. Hussain, and S. Pack,
+“Optimal haptic communications over nanonetworks for E-health systems,” IEEE Trans. Ind. Informat., vol. 15, no. 5, pp. 3016–3027,
+May 2019.
+[26] Y. Zhang, C. Li, T. H. Luan, Y. Fu, W. Shi, and L. Zhu, “A mobilityaware vehicular caching scheme in content centric networks: Model and
+optimization,” IEEE Trans. Veh. Technol., vol. 68, no. 4, pp. 3100–3112,
+Apr. 2019.
+[27] M. J. Neely, “Energy optimal control for time-varying wireless networks,” IEEE Trans. Inf. Theory, vol. 52, no. 7, pp. 2915–2934,
+Jul. 2006.
+[28] X. Ying, M. M. Buddhikot, and S. Roy, “SAS-assisted coexistence-aware
+dynamic channel assignment in CBRS band,” IEEE Trans. Wireless
+Commun., vol. 17, no. 9, pp. 6307–6320, Sep. 2018.
+[29] J. Vondrak, “Optimal approximation for the submodular welfare problem
+in the value Oracle model,” in Proc. 40th Annu. ACM Symp. Theory
+Comput., May 2008, pp. 67–74.
+[30] T. Deng, X. Liu, H. Zhou, and V. C. M. Leung, “Global resource allocation for high throughput and low delay in high-density VANETs,” IEEE
+Trans. Wireless Commun., vol. 21, no. 11, pp. 9509–9518, Nov. 2022.
+[31] Z. Zhao, G. Verma, C. Rao, A. Swami, and S. Segarra, “Link scheduling
+using graph neural networks,” IEEE Trans. Wireless Commun., vol. 22,
+no. 6, pp. 3997–4012, Jun. 2023.
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+ZHU et al.: BEAM MANAGEMENT IN LOW EARTH ORBIT SATELLITE COMMUNICATION
+
+[32] J. Zhu, Y. Sun, and M. Peng, “Beam management in low Earth orbit
+satellite networks with random traffic arrival and time-varying topology,”
+IEEE Trans. Veh. Technol., vol. 73, no. 9, pp. 13352–13367, Sep. 2024.
+[33] W. Yu, H. Kang, G. Sun, S. Liang, and J. Li, “Bio-inspired feature
+selection in brain disease detection via an improved sparrow search
+algorithm,” IEEE Trans. Instrum. Meas., vol. 72, pp. 1–15, 2023.
+[34] A. G. Gad, K. M. Sallam, R. K. Chakrabortty, M. J. Ryan, and
+A. A. Abohany, “An improved binary sparrow search algorithm for
+feature selection in data classification,” Neural Comput. Appl., vol. 34,
+no. 18, pp. 15705–15752, Sep. 2022.
+[35] E. E. Haber, T. M. Nguyen, and C. Assi, “Joint optimization of
+computational cost and devices energy for task offloading in multi-tier
+edge-clouds,” IEEE Trans. Commun., vol. 67, no. 5, pp. 3407–3421,
+May 2019.
+[36] N. Pachler, I. del Portillo, E. F. Crawley, and B. G. Cameron,
+“An updated comparison of four low earth orbit satellite constellation
+systems to provide global broadband,” in Proc. IEEE Int. Conf. Commun.
+Workshops (ICC Workshops), Montreal, QC, Canada, Jun. 2021, pp. 1–7.
+[37] Solutions for NR to Support Non-Terrestrial Networks (NTN): NonTerrestrial Networks (NTN) Related RF and Co-existence Aspects,
+document 38.863, 3GPP, Sophia Antipolis, France, 2024.
+[38] Study on New Radio (NR) to Support Non Terrestrial Networks,
+document 38.811, 3GPP, Sophia Antipolis, France, 2020.
+[39] S. Yuan, Y. Sun, and M. Peng, “Joint network function placement
+and routing optimization in dynamic software-defined satellite-terrestrial
+integrated networks,” IEEE Trans. Wireless Commun., vol. 23, no. 5,
+pp. 5172–5186, May 2024.
+[40] J. Zhang et al., “System-level evaluation of beam hopping in NR-based
+LEO satellite communication system,” in Proc. IEEE Wireless Commun.
+Netw. Conf. (WCNC), Glasgow, U.K., Mar. 2023, pp. 1–6.
+[41] N. Pachler, E. F. Crawley, and B. G. Cameron, “Avoiding selfinterference in megaconstellations through cooperative satellite routing
+and frequency assignment,” IEEE J. Sel. Areas Commun., vol. 42, no. 11,
+pp. 3188–3203, Nov. 2024, doi: 10.1109/JSAC.2024.3431571.
+[42] L. Wang, X. Hu, S. Ma, S. Xu, and W. Wang, “Dynamic beam
+hopping of multi-beam satellite based on genetic algorithm,” in
+Proc. IEEE Int. Conf. Parallel Distrib. Process. Appl., Big Data
+Cloud Comput., Sustain. Comput. Commun., Social Comput. Netw.
+(ISPA/BDCloud/SocialCom/SustainCom), Exeter, U.K., Dec. 2020,
+pp. 1364–1370.
+[43] Q.-V. Pham, S. Mirjalili, N. Kumar, M. Alazab, and W.-J. Hwang,
+“Whale optimization algorithm with applications to resource allocation
+in wireless networks,” IEEE Trans. Veh. Technol., vol. 69, no. 4,
+pp. 4285–4297, Apr. 2020.
+
+Jianfeng Zhu received the bachelor’s degree in
+information and communication engineering from
+Beijing University of Posts and Telecommunications (BUPT), Beijing, China, in 2019, where he
+is currently pursuing the Ph.D. degree with the
+State Key Laboratory of Networking and Switching
+Technology. His research interests include random
+access, beam management, mobility management,
+and spectrum sharing in LEO satellite communications and mega-constellation networks.
+
+5263
+
+Yaohua Sun received the bachelor’s degree (Hons.)
+in telecommunications engineering (with management) and the Ph.D. degree in communication
+engineering from Beijing University of Posts and
+Telecommunications (BUPT), Beijing, China, in
+2014 and 2019, respectively.
+He is currently an Associate Professor with the
+School of Information and Communication Engineering, BUPT. He has published over 30 papers,
+including three ESI highly cited papers. His research
+interests include intelligent radio access networks
+and LEO satellite communication. He has been a reviewer of IEEE T RANS ACTIONS ON C OMMUNICATIONS and IEEE T RANSACTIONS ON M OBILE
+C OMPUTING.
+
+Mugen Peng received the Ph.D. degree in communication and information systems from Beijing University of Posts and Telecommunications (BUPT),
+Beijing, China, in 2005. In 2014, he was an Academic Visiting Fellow with Princeton University,
+Princeton, NJ, USA. He joined BUPT, where he
+has been the Dean of the School of Information
+and Communication Engineering since June 2020,
+and the Deputy Director of the State Key Laboratory of Networking and Switching Technology
+since October 2018. He currently leads the Research
+Group focusing on wireless transmission and networking technologies with
+the State Key Laboratory of Networking and Switching Technology, BUPT.
+His main research interests include wireless communication theory, radio
+signal processing, cooperative communication, self-organization networking,
+non-terrestrial networks, and the Internet of Things. He was a recipient of
+the 2018 Heinrich Hertz Prize Paper Award, the 2014 IEEE ComSoc AP
+Outstanding Young Researcher Award, and the Best Paper Award from IEEE
+ICC 2022, JCN 2016, and IEEE WCNC 2015. He is/was on the editorial or
+associate editorial board of IEEE Communications Magazine, IEEE Network,
+IEEE I NTERNET OF T HINGS J OURNAL, IEEE T RANSACTIONS ON V EHIC ULAR T ECHNOLOGY , and IEEE T RANSACTIONS ON N ETWORK S CIENCE
+AND E NGINEERING .
+
+Authorized licensed use limited to: National Yang Ming Chiao Tung University. Downloaded on December 12,2025 at 10:53:01 UTC from IEEE Xplore. Restrictions apply.
+
+

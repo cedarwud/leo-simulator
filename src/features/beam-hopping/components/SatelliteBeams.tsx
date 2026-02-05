@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react';
 import { Line, Cone, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { EarthFixedCell, FRF3_CELL_COLORS } from './EarthFixedCells';
+import { EarthFixedCell, POLARIZATION_COLORS, getBeamPolarization, getBeamColor } from './EarthFixedCells';
 
 /**
  * 衛星到 Cell 的 Beam 連線
@@ -32,8 +32,11 @@ export function SatelliteToCellBeam({
   isPrimary = false,
   beamRadius,
 }: SatelliteToCellBeamProps) {
-  // Beam 顏色 = Cell 的頻率組顏色（主要波束用白色高亮）
-  const beamColor = isPrimary ? '#ffffff' : FRF3_CELL_COLORS[targetCell.frequencyGroup];
+  // 論文 4-1 雙極化設計：波束顏色 = 波束的極化配置
+  // Beam 1, 3, 5... → 極化 A (橙色)
+  // Beam 2, 4, 6... → 極化 B (青色)
+  const polarization = getBeamPolarization(beamId);
+  const beamColor = POLARIZATION_COLORS[polarization];
   const groupRef = useRef<THREE.Group>(null);
   
   // 計算 beam 參數
@@ -100,7 +103,7 @@ export function SatelliteToCellBeam({
         gapSize={10}
       />
       
-      {/* 波束編號標籤（顯示在波束中段） */}
+      {/* 波束編號標籤（顯示在波束中段）- 使用 FRF3 顏色 */}
       <Text
         position={[
           beamParams.midPoint.x,
@@ -108,13 +111,13 @@ export function SatelliteToCellBeam({
           beamParams.midPoint.z,
         ]}
         fontSize={isPrimary ? 14 : 10}
-        color={isPrimary ? '#ffff00' : '#ffffff'}
+        color={beamColor}
         anchorX="center"
         anchorY="middle"
-        outlineWidth={1.5}
-        outlineColor="#000000"
+        outlineWidth={isPrimary ? 2.5 : 1.5}
+        outlineColor={isPrimary ? '#ffffff' : '#000000'}
       >
-        {`B${beamId}`}
+        {`B${beamId}${isPrimary ? ' ★' : ''}`}
       </Text>
     </group>
   );

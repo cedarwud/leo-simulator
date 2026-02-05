@@ -1,6 +1,6 @@
 import React from 'react';
-import { Satellite, Radio, Zap, Activity, ArrowRightLeft, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
-import { FRF3_COLORS } from '../types';
+import { Satellite, Radio, Zap, Activity } from 'lucide-react';
+import { POLARIZATION_COLORS } from '../components/EarthFixedCells';
 import { BeamManagementStats } from '../components/BeamHoppingSystem';
 import { ENERGY_CONFIG } from '@/config/energy.config';
 
@@ -12,15 +12,6 @@ interface BeamHoppingSidebarProps {
 export function BeamHoppingSidebar({
   stats,
 }: BeamHoppingSidebarProps) {
-  const colors = Object.values(FRF3_COLORS);
-
-  // 格式化時間 (秒 → MM:SS)
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div style={{
       position: 'absolute',
@@ -51,7 +42,7 @@ export function BeamHoppingSidebar({
           Beam Management
         </div>
         <div style={{ color: '#aaaaaa', fontSize: '15px' }}>
-          Intra-satellite Beam Handover
+          Inter-satellite Handover
         </div>
       </div>
 
@@ -141,20 +132,20 @@ export function BeamHoppingSidebar({
               </span>
             </div>
 
-            {/* RSRP */}
+            {/* UE 位置 */}
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
             }}>
-              <span style={{ fontSize: '15px', color: '#cccccc' }}>RSRP</span>
+              <span style={{ fontSize: '15px', color: '#cccccc' }}>UE Location</span>
               <span style={{
                 fontSize: '16px',
                 fontWeight: '600',
-                color: stats?.currentRSRP != null ? '#00aaff' : '#888888',
+                color: '#ff66aa',
                 fontFamily: 'monospace',
               }}>
-                {stats?.currentRSRP != null ? `${stats.currentRSRP.toFixed(1)} dBm` : '-'}
+                Cell {stats?.handoverDetails?.ueCellId ?? '-'}
               </span>
             </div>
           </div>
@@ -195,13 +186,14 @@ export function BeamHoppingSidebar({
                 <span style={{ fontSize: '13px', color: '#cccccc' }}>
                   Cell {stats?.handoverDetails?.ueCellId ?? '-'}
                 </span>
-                <span style={{ 
-                  fontSize: '13px', 
-                  color: (stats?.ueDataQueue ?? 0) > 800 ? '#ff4444' : 
-                         (stats?.ueDataQueue ?? 0) > 400 ? '#ffaa00' : '#44ff88',
+                <span style={{
+                  fontSize: '13px',
+                  color: !stats ? '#888888' :
+                         (stats.ueDataQueue ?? 0) > 800 ? '#ff4444' :
+                         (stats.ueDataQueue ?? 0) > 400 ? '#ffaa00' : '#44ff88',
                   fontFamily: 'monospace',
                 }}>
-                  {Math.round(stats?.ueDataQueue ?? 0)} / 1000
+                  {stats ? `${Math.round(stats.ueDataQueue ?? 0)} / 1000` : 'Loading...'}
                 </span>
               </div>
               {/* 進度條背景 */}
@@ -215,12 +207,15 @@ export function BeamHoppingSidebar({
               }}>
                 {/* 進度條填充 */}
                 <div style={{
-                  width: `${Math.min((stats?.ueDataQueue ?? 0) / 10, 100)}%`,
+                  width: stats
+                    ? `${Math.min((stats.ueDataQueue ?? 0) / 1000 * 100, 100)}%`
+                    : '30%',  // 加載中顯示 30%
                   height: '100%',
-                  backgroundColor: (stats?.ueDataQueue ?? 0) > 800 ? '#ff4444' : 
-                                   (stats?.ueDataQueue ?? 0) > 400 ? '#ffaa00' : '#44ff88',
+                  backgroundColor: !stats ? '#888888' :
+                                   (stats.ueDataQueue ?? 0) > 800 ? '#ff4444' :
+                                   (stats.ueDataQueue ?? 0) > 400 ? '#ffaa00' : '#44ff88',
                   borderRadius: '4px',
-                  transition: 'width 0.2s ease, background-color 0.3s ease',
+                  transition: 'width 0.3s ease, background-color 0.3s ease',
                 }} />
               </div>
             </div>
@@ -235,279 +230,13 @@ export function BeamHoppingSidebar({
           </div>
         </div>
 
-        {/* 換手統計 */}
+        {/* 能耗分析 */}
         <div>
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            marginBottom: '14px',
-          }}>
-            <ArrowRightLeft size={20} color="#00aaff" />
-            <div style={{
-              fontSize: '17px',
-              color: '#ffffff',
-              fontWeight: '600',
-            }}>
-              Handover Statistics
-            </div>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '10px',
-          }}>
-            {/* 波束換手 */}
-            <div style={{
-              padding: '14px',
-              backgroundColor: 'rgba(0, 170, 255, 0.1)',
-              borderRadius: '10px',
-              border: '1px solid rgba(0, 170, 255, 0.25)',
-            }}>
-              <div style={{ fontSize: '14px', color: '#66ccff', marginBottom: '6px' }}>
-                Beam Handovers
-              </div>
-              <div style={{
-                fontSize: '32px',
-                fontWeight: '700',
-                color: '#00aaff',
-                fontFamily: 'monospace',
-              }}>
-                {stats?.beamHandovers ?? 0}
-              </div>
-            </div>
-
-            {/* 衛星換手 */}
-            <div style={{
-              padding: '14px',
-              backgroundColor: 'rgba(255, 170, 0, 0.1)',
-              borderRadius: '10px',
-              border: '1px solid rgba(255, 170, 0, 0.25)',
-            }}>
-              <div style={{ fontSize: '14px', color: '#ffcc66', marginBottom: '6px' }}>
-                Satellite Handovers
-              </div>
-              <div style={{
-                fontSize: '32px',
-                fontWeight: '700',
-                color: '#ffaa00',
-                fontFamily: 'monospace',
-              }}>
-                {stats?.satelliteHandovers ?? 0}
-              </div>
-            </div>
-          </div>
-
-          {/* 運行時間 */}
-          <div style={{
-            marginTop: '10px',
-            padding: '12px 14px',
-            backgroundColor: 'rgba(255, 255, 255, 0.06)',
-            borderRadius: '8px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}>
-              <Clock size={16} color="#cccccc" />
-              <span style={{ fontSize: '15px', color: '#cccccc' }}>Elapsed Time</span>
-            </div>
-            <span style={{
-              fontSize: '18px',
-              fontWeight: '600',
-              color: '#ffffff',
-              fontFamily: 'monospace',
-            }}>
-              {formatTime(stats?.elapsedTime ?? 0)}
-            </span>
-          </div>
-        </div>
-
-        {/* 換手詳細資訊 */}
-        {stats?.handoverDetails && (
-          <div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              marginBottom: '14px',
-            }}>
-              <TrendingUp size={20} color="#ff66aa" />
-              <div style={{
-                fontSize: '17px',
-                color: '#ffffff',
-                fontWeight: '600',
-              }}>
-                Handover Details
-              </div>
-            </div>
-
-            {/* UE Cell 資訊 */}
-            <div style={{
-              padding: '14px',
-              backgroundColor: 'rgba(255, 102, 170, 0.1)',
-              borderRadius: '10px',
-              border: '1px solid rgba(255, 102, 170, 0.25)',
-              marginBottom: '10px',
-            }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '10px',
-              }}>
-                <span style={{ fontSize: '14px', color: '#cccccc' }}>UE Location</span>
-                <span style={{
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: '#ff66aa',
-                  fontFamily: 'monospace',
-                }}>
-                  Cell {stats.handoverDetails.ueCellId ?? '-'}
-                </span>
-              </div>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '10px',
-              }}>
-                <span style={{ fontSize: '14px', color: '#cccccc' }}>Serving Beam</span>
-                <span style={{
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: '#00ff88',
-                  fontFamily: 'monospace',
-                }}>
-                  B{stats.handoverDetails.servingBeamId ?? '-'}
-                </span>
-              </div>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}>
-                <span style={{ fontSize: '14px', color: '#cccccc' }}>Next Beam (predicted)</span>
-                <span style={{
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: '#ffaa00',
-                  fontFamily: 'monospace',
-                }}>
-                  {stats.handoverDetails.predictedNextBeam 
-                    ? `B${stats.handoverDetails.predictedNextBeam}`
-                    : '-'}
-                </span>
-              </div>
-            </div>
-
-            {/* 換手倒計時 */}
-            {stats.handoverDetails.timeToHandover !== null && (
-              <div style={{
-                padding: '12px 14px',
-                backgroundColor: stats.handoverDetails.timeToHandover < 3 
-                  ? 'rgba(255, 68, 68, 0.15)' 
-                  : 'rgba(255, 170, 0, 0.1)',
-                borderRadius: '8px',
-                border: `1px solid ${stats.handoverDetails.timeToHandover < 3 
-                  ? 'rgba(255, 68, 68, 0.4)' 
-                  : 'rgba(255, 170, 0, 0.25)'}`,
-                marginBottom: '10px',
-              }}>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '8px',
-                }}>
-                  <AlertTriangle 
-                    size={16} 
-                    color={stats.handoverDetails.timeToHandover < 3 ? '#ff4444' : '#ffaa00'} 
-                  />
-                  <span style={{ 
-                    fontSize: '14px', 
-                    color: stats.handoverDetails.timeToHandover < 3 ? '#ff6666' : '#ffcc66',
-                    fontWeight: '500',
-                  }}>
-                    {stats.handoverDetails.timeToHandover < 3 
-                      ? 'Handover Imminent!' 
-                      : 'Approaching Handover'}
-                  </span>
-                </div>
-                <div style={{
-                  fontSize: '24px',
-                  fontWeight: '700',
-                  color: stats.handoverDetails.timeToHandover < 3 ? '#ff4444' : '#ffaa00',
-                  fontFamily: 'monospace',
-                  textAlign: 'center',
-                }}>
-                  ~{stats.handoverDetails.timeToHandover.toFixed(1)}s
-                </div>
-              </div>
-            )}
-
-            {/* 最近換手歷史 */}
-            {stats.handoverDetails.recentHandovers.length > 0 && (
-              <div style={{
-                padding: '12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                borderRadius: '8px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-              }}>
-                <div style={{ 
-                  fontSize: '13px', 
-                  color: '#888888', 
-                  marginBottom: '8px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                }}>
-                  Recent Handovers
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {stats.handoverDetails.recentHandovers.slice(-3).reverse().map((ho, idx) => (
-                    <div 
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '6px 8px',
-                        backgroundColor: ho.type === 'satellite' 
-                          ? 'rgba(255, 170, 0, 0.1)' 
-                          : 'rgba(0, 170, 255, 0.1)',
-                        borderRadius: '4px',
-                        fontSize: '13px',
-                      }}
-                    >
-                      <span style={{ 
-                        color: ho.type === 'satellite' ? '#ffaa00' : '#00aaff',
-                        fontWeight: '500',
-                      }}>
-                        {ho.type === 'satellite' ? '🛰️' : '📶'} {ho.from} → {ho.to}
-                      </span>
-                      <span style={{ color: '#666666', fontSize: '11px' }}>
-                        {Math.round((Date.now() - ho.time) / 1000)}s ago
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 能源效率 */}
-        <div>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            marginBottom: '14px',
+            marginBottom: '8px',
           }}>
             <Zap size={20} color="#00ff88" />
             <div style={{
@@ -515,103 +244,253 @@ export function BeamHoppingSidebar({
               color: '#ffffff',
               fontWeight: '600',
             }}>
-              Energy Consumption
+              Energy Analysis
             </div>
           </div>
+          <div style={{
+            fontSize: '11px',
+            color: '#888888',
+            marginBottom: '14px',
+            fontStyle: 'italic',
+          }}>
+            Ntabeni et al. (2025) - {ENERGY_CONFIG.ENERGY_PER_HANDOVER}J/handover
+          </div>
 
+          {/* 當前能耗與投影 */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             gap: '10px',
             marginBottom: '12px',
           }}>
-            {/* 累積能耗 */}
+            {/* 當前能耗 */}
             <div style={{
-              padding: '14px',
+              padding: '12px',
               backgroundColor: 'rgba(0, 255, 136, 0.1)',
               borderRadius: '10px',
               border: '1px solid rgba(0, 255, 136, 0.25)',
             }}>
-              <div style={{ fontSize: '14px', color: '#66ffaa', marginBottom: '6px' }}>
-                Total Energy
+              <div style={{ fontSize: '12px', color: '#66ffaa', marginBottom: '4px' }}>
+                Current
               </div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: '4px',
-              }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
                 <span style={{
-                  fontSize: '28px',
+                  fontSize: '24px',
                   fontWeight: '700',
                   color: '#00ff88',
                   fontFamily: 'monospace',
                 }}>
                   {(stats?.energyConsumption ?? 0).toFixed(1)}
                 </span>
-                <span style={{ fontSize: '15px', color: '#aaaaaa' }}>J</span>
+                <span style={{ fontSize: '13px', color: '#aaaaaa' }}>J</span>
               </div>
             </div>
 
-            {/* 換手頻率 */}
+            {/* 投影到 3000s */}
             <div style={{
-              padding: '14px',
-              backgroundColor: 'rgba(0, 255, 136, 0.1)',
+              padding: '12px',
+              backgroundColor: stats?.energyProjection
+                ? stats.energyProjection.rating === 'excellent' ? 'rgba(0, 255, 136, 0.15)'
+                : stats.energyProjection.rating === 'good' ? 'rgba(0, 200, 255, 0.15)'
+                : stats.energyProjection.rating === 'average' ? 'rgba(255, 170, 0, 0.15)'
+                : 'rgba(255, 68, 68, 0.15)'
+                : 'rgba(100, 100, 100, 0.1)',
               borderRadius: '10px',
-              border: '1px solid rgba(0, 255, 136, 0.25)',
+              border: `1px solid ${stats?.energyProjection
+                ? stats.energyProjection.rating === 'excellent' ? 'rgba(0, 255, 136, 0.4)'
+                : stats.energyProjection.rating === 'good' ? 'rgba(0, 200, 255, 0.4)'
+                : stats.energyProjection.rating === 'average' ? 'rgba(255, 170, 0, 0.4)'
+                : 'rgba(255, 68, 68, 0.4)'
+                : 'rgba(100, 100, 100, 0.3)'}`,
             }}>
-              <div style={{ fontSize: '14px', color: '#66ffaa', marginBottom: '6px' }}>
-                Handover Rate
+              <div style={{ fontSize: '12px', color: '#aaaaaa', marginBottom: '4px' }}>
+                @ 3000s
               </div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: '4px',
-              }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
                 <span style={{
-                  fontSize: '28px',
+                  fontSize: '24px',
                   fontWeight: '700',
-                  color: '#00ff88',
+                  color: stats?.energyProjection
+                    ? stats.energyProjection.rating === 'excellent' ? '#00ff88'
+                    : stats.energyProjection.rating === 'good' ? '#00ccff'
+                    : stats.energyProjection.rating === 'average' ? '#ffaa00'
+                    : '#ff4444'
+                    : '#888888',
                   fontFamily: 'monospace',
                 }}>
-                  {stats?.elapsedTime && stats.elapsedTime > 0
-                    ? ((stats.totalHandovers / stats.elapsedTime) * 60).toFixed(1)
-                    : '0.0'}
+                  {stats?.energyProjection
+                    ? stats.energyProjection.projectedAt3000s.toFixed(1)
+                    : '—'}
                 </span>
-                <span style={{ fontSize: '14px', color: '#aaaaaa' }}>/min</span>
+                <span style={{ fontSize: '13px', color: '#aaaaaa' }}>J</span>
               </div>
             </div>
           </div>
 
-          {/* 每次換手能耗 */}
+          {/* Baseline 比較 */}
           <div style={{
-            padding: '16px',
-            backgroundColor: 'rgba(0, 255, 136, 0.06)',
+            padding: '12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.04)',
             borderRadius: '10px',
-            border: '1px solid rgba(0, 255, 136, 0.15)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
           }}>
-            <span style={{ fontSize: '16px', color: '#cccccc' }}>Energy per Handover</span>
             <div style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: '4px',
+              fontSize: '12px',
+              color: '#888888',
+              marginBottom: '10px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
             }}>
-              <span style={{
-                fontSize: '24px',
-                fontWeight: '700',
-                color: '#00ff88',
-                fontFamily: 'monospace',
-              }}>
-                {ENERGY_CONFIG.ENERGY_PER_HANDOVER}
-              </span>
-              <span style={{ fontSize: '16px', color: '#aaaaaa' }}>J</span>
+              vs Baselines @ 3000s
             </div>
+
+            {/* EA-QL (Best) */}
+            <div style={{ marginBottom: '8px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '4px',
+              }}>
+                <span style={{ fontSize: '12px', color: '#66ffaa' }}>EA-QL (Best)</span>
+                <span style={{ fontSize: '12px', color: '#aaaaaa', fontFamily: 'monospace' }}>4.5 J</span>
+              </div>
+              <div style={{
+                width: '100%',
+                height: '6px',
+                backgroundColor: 'rgba(0, 255, 136, 0.2)',
+                borderRadius: '3px',
+                overflow: 'hidden',
+                position: 'relative',
+              }}>
+                <div style={{
+                  width: `${Math.min((4.5 / 14) * 100, 100)}%`,
+                  height: '100%',
+                  backgroundColor: '#00ff88',
+                  borderRadius: '3px',
+                }} />
+                {stats?.energyProjection && (
+                  <div style={{
+                    position: 'absolute',
+                    left: `${Math.min((stats.energyProjection.projectedAt3000s / 14) * 100, 100)}%`,
+                    top: '-2px',
+                    width: '2px',
+                    height: '10px',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '1px',
+                  }} />
+                )}
+              </div>
+            </div>
+
+            {/* Traditional */}
+            <div style={{ marginBottom: '8px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '4px',
+              }}>
+                <span style={{ fontSize: '12px', color: '#00ccff' }}>Traditional</span>
+                <span style={{ fontSize: '12px', color: '#aaaaaa', fontFamily: 'monospace' }}>6.0 J</span>
+              </div>
+              <div style={{
+                width: '100%',
+                height: '6px',
+                backgroundColor: 'rgba(0, 200, 255, 0.2)',
+                borderRadius: '3px',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  width: `${Math.min((6.0 / 14) * 100, 100)}%`,
+                  height: '100%',
+                  backgroundColor: '#00ccff',
+                  borderRadius: '3px',
+                }} />
+              </div>
+            </div>
+
+            {/* Predictive */}
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '4px',
+              }}>
+                <span style={{ fontSize: '12px', color: '#ff8866' }}>Predictive</span>
+                <span style={{ fontSize: '12px', color: '#aaaaaa', fontFamily: 'monospace' }}>14.0 J</span>
+              </div>
+              <div style={{
+                width: '100%',
+                height: '6px',
+                backgroundColor: 'rgba(255, 136, 102, 0.2)',
+                borderRadius: '3px',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: '#ff8866',
+                  borderRadius: '3px',
+                }} />
+              </div>
+            </div>
+
+            {/* Your Method 指示器 */}
+            {stats?.energyProjection && (
+              <div style={{
+                padding: '8px 10px',
+                backgroundColor: stats.energyProjection.rating === 'excellent' ? 'rgba(0, 255, 136, 0.15)'
+                  : stats.energyProjection.rating === 'good' ? 'rgba(0, 200, 255, 0.15)'
+                  : stats.energyProjection.rating === 'average' ? 'rgba(255, 170, 0, 0.15)'
+                  : 'rgba(255, 68, 68, 0.15)',
+                borderRadius: '6px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <span style={{
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: stats.energyProjection.rating === 'excellent' ? '#00ff88'
+                    : stats.energyProjection.rating === 'good' ? '#00ccff'
+                    : stats.energyProjection.rating === 'average' ? '#ffaa00'
+                    : '#ff4444',
+                }}>
+                  Your Method
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    color: '#ffffff',
+                    fontFamily: 'monospace',
+                  }}>
+                    {stats.energyProjection.projectedAt3000s.toFixed(1)} J
+                  </span>
+                  <span style={{
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    backgroundColor: stats.energyProjection.comparison.vsTraditional.percentage < 0
+                      ? 'rgba(0, 255, 136, 0.3)'
+                      : 'rgba(255, 68, 68, 0.3)',
+                    color: stats.energyProjection.comparison.vsTraditional.percentage < 0
+                      ? '#00ff88'
+                      : '#ff6666',
+                    fontFamily: 'monospace',
+                  }}>
+                    {stats.energyProjection.comparison.vsTraditional.percentage > 0 ? '+' : ''}
+                    {stats.energyProjection.comparison.vsTraditional.percentage.toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* 頻率複用圖例 */}
+        {/* 論文 4-1：雙極化配置圖例 */}
         <div>
           <div style={{
             fontSize: '17px',
@@ -619,7 +498,15 @@ export function BeamHoppingSidebar({
             fontWeight: '600',
             marginBottom: '14px',
           }}>
-            Frequency Reuse (FRF3)
+            Polarization Config
+          </div>
+          <div style={{
+            fontSize: '12px',
+            color: '#888888',
+            marginBottom: '12px',
+            fontStyle: 'italic',
+          }}>
+            Paper 4-1: Two orthogonal polarizations
           </div>
           <div style={{
             display: 'flex',
@@ -627,12 +514,12 @@ export function BeamHoppingSidebar({
             gap: '8px',
           }}>
             {[
-              { color: colors[0], label: 'Group 0 (B0, B5, B6)', freq: 'f1' },
-              { color: colors[1], label: 'Group 1 (B1, B3)', freq: 'f2' },
-              { color: colors[2], label: 'Group 2 (B2, B4)', freq: 'f3' },
-            ].map(({ color, label, freq }) => (
+              { color: POLARIZATION_COLORS.A, label: 'Polarization A (B1, B3...)', id: 'pol-a' },
+              { color: POLARIZATION_COLORS.B, label: 'Polarization B (B2, B4...)', id: 'pol-b' },
+              { color: '#aaaaaa', label: 'Not Served', id: 'not-served' },
+            ].map(({ color, label, id }) => (
               <div
-                key={freq}
+                key={id}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
