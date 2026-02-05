@@ -34,6 +34,8 @@ export interface EarthFixedCell {
   servingSatelliteId: string | null;
   /** 服務此 cell 的波束顏色 */
   servingBeamColor: string | null;
+  /** 能覆蓋此 cell 的衛星數量（用於顯示重疊區域）*/
+  coveringSatelliteCount?: number;
 }
 
 /**
@@ -147,6 +149,36 @@ function EarthFixedCellComponent({
           outlineColor="#000000"
         >
           {`C${cell.id}`}
+        </Text>
+      )}
+      
+      {/* 服務衛星標識 - 顯示當前服務此 Cell 的衛星 */}
+      {cell.servingSatelliteId && (
+        <Text
+          position={[0, -2, 0]}
+          fontSize={10}
+          color="#ffff00"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.8}
+          outlineColor="#000000"
+        >
+          {cell.servingSatelliteId.replace('LEO-SAT-', 'S')}
+        </Text>
+      )}
+      
+      {/* 重疊覆蓋指示器 - 顯示有多少衛星可以覆蓋此 Cell */}
+      {cell.coveringSatelliteCount && cell.coveringSatelliteCount > 1 && (
+        <Text
+          position={[cell.radius * 0.6, 5, -cell.radius * 0.5]}
+          fontSize={8}
+          color="#ff8800"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.5}
+          outlineColor="#000000"
+        >
+          {`×${cell.coveringSatelliteCount}`}
         </Text>
       )}
     </group>

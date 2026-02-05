@@ -1,11 +1,15 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF, Text } from '@react-three/drei';
+import { useGLTF, Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { EarthFixedCell, FRF3_CELL_COLORS } from './EarthFixedCells';
 import { SatelliteBeams, BeamAssignment, getVisibleCells } from './SatelliteBeams';
 import { ENERGY_CONFIG } from '@/config/energy.config';
+import { SatelliteOrbitCalculator } from '@/utils/satellite/SatelliteOrbitCalculator';
 import type { UEHandoverState } from './MultiUEManager';
+
+// 使用與 Satellite Handover 場景相同的數據源
+const ORBIT_DATA_URL = '/data/satellite-timeseries-starlink.json';
 
 const SATELLITE_MODEL_PATH = '/models/sat.glb';
 useGLTF.preload(SATELLITE_MODEL_PATH);
@@ -24,6 +28,9 @@ export interface BeamManagementStats {
   energyConsumption: number;
   averageEnergyPerSecond: number;
   activeBeams: number[];
+  
+  // 論文 4-1：UE 所在 Cell 的 Data Queue（虛擬佇列 M_c）
+  ueDataQueue: number;
   
   // 新增：換手詳細資訊
   handoverDetails: {
@@ -48,75 +55,12 @@ export interface BeamManagementStats {
 }
 
 /**
- * 編排的衛星軌跡
- */
-interface ScriptedSatellite {
-  id: string;
-  startPos: THREE.Vector3;
-  endPos: THREE.Vector3;
-  startTime: number;
-  duration: number;
-}
-
-/**
  * Beam 狀態：追蹤每個波束服務的 Cell
  */
 interface BeamState {
   beamId: number;        // 波束編號 (1, 2, 3...)
   targetCellId: number;  // 目標 Cell ID
   isActive: boolean;     // 當前時隙是否激活
-}
-
-/**
- * 生成編排的衛星軌跡
- * 
- * 單一衛星循環往返，專注展示波束內換手 (Intra-satellite Beam Handover)
- */
-function generateScriptedSatellites(
-  centerPosition: THREE.Vector3,
-  count: number,
-  interval: number,
-  satelliteHeight: number
-): ScriptedSatellite[] {
-  // 只使用一顆衛星，循環往返
-  return [{
-    id: 'LEO-SAT-1',
-    startPos: new THREE.Vector3(
-      centerPosition.x - 350,
-      satelliteHeight,
-      centerPosition.z
-    ),
-    endPos: new THREE.Vector3(
-      centerPosition.x + 350,
-      satelliteHeight,
-      centerPosition.z
-    ),
-    startTime: 0,
-    duration: 30,  // 30 秒從左到右
-  }];
-}
-
-/**
- * 計算衛星當前位置（支援往返循環）
- */
-function getSatellitePosition(
-  sat: ScriptedSatellite,
-  currentTime: number
-): THREE.Vector3 | null {
-  // 循環往返：總週期 = 2 * duration（去程 + 回程）
-  const totalCycle = sat.duration * 2;
-  const cycleTime = currentTime % totalCycle;
-  
-  let progress: number;
-  if (cycleTime <= sat.duration) {
-    // 去程：從 start 到 end
-    progress = cycleTime / sat.duration;
-    return new THREE.Vector3().lerpVectors(sat.startPos, sat.endPos, progress);
-  } else {
-    // 回程：從 end 到 start
-    progress = (cycleTime - sat.duration) / sat.duration;
-    return new THREE.Vector3().lerpVectors(sat.endPos, sat.startPos, progress);
-  }
 }
 
 /**
@@ -188,9 +132,9 @@ export function BeamHoppingSystem({
   uePositions,
   selectedUEId,
   satelliteHeight = 400,
-  timeSpeed = 0.8,      // 加快衛星移動速度，換手更頻繁
+  timeSpeed = 3,        // 衛星移動速度（1.5x 加速）
   slotDuration = 0.5,
-  maxBeamsPerSat = 4,
+  maxBeamsPerSat = 4,   // 服務 UE 的衛星波束數，其他衛星會顯示較少（2個）
   onStatsUpdate,
   onCellsUpdate,
   onUEStatesUpdate,
@@ -263,23 +207,30 @@ export function BeamHoppingSystem({
   const currentSlotRef = useRef(0);
   const lastSlotRef = useRef(-1);
   
-  // Handover 追蹤
-  const beamHandoversRef = useRef(0);
-  const satelliteHandoversRef = useRef(0);
+  // Inter-satellite Handover 追蹤
+  // 論文 4-1：追蹤每個 cell 的服務衛星，當服務衛星改變時計為換手
+  const cellServingSatRef = useRef<Map<number, string>>(new Map()); // cell ID → 服務衛星 ID
+  const interSatelliteHandoversRef = useRef(0);
   const lastServingSatRef = useRef<string | null>(null);
-  const lastServingBeamIdRef = useRef<number | null>(null);  // 波束編號（僅顯示用）
-  const lastServingCellIdRef = useRef<number | null>(null);  // UE 所在的 Cell ID（用於 Beam Handover 判斷）
+  const lastServingBeamIdRef = useRef<number | null>(null);
+  const lastServingCellIdRef = useRef<number | null>(null);
   
-  // 編排的衛星 - 間隔縮短為 10 秒，讓換手更頻繁
-  const scriptedSatellites = useMemo(
-    () => generateScriptedSatellites(
-      new THREE.Vector3(0, 0, 0),
-      4,
-      10,  // 從 20 秒縮短為 10 秒
-      satelliteHeight
-    ),
-    [satelliteHeight]
-  );
+  // ========== 使用真實軌道數據（與 Satellite Handover 場景相同） ==========
+  const calculator = useMemo(() => new SatelliteOrbitCalculator(), []);
+  const [isLoaded, setIsLoaded] = useState(false);
+  
+  // 載入衛星軌道數據
+  useEffect(() => {
+    calculator
+      .loadTimeseries(ORBIT_DATA_URL)
+      .then(() => {
+        setIsLoaded(true);
+        console.log('✅ BeamHopping: 載入真實軌道數據成功');
+      })
+      .catch((err) => {
+        console.error('❌ BeamHopping: 軌道數據載入失敗:', err);
+      });
+  }, [calculator]);
   
   // 當前活躍的衛星和位置
   const [activeSatellites, setActiveSatellites] = useState<Map<string, THREE.Vector3>>(new Map());
@@ -304,11 +255,15 @@ export function BeamHoppingSystem({
     if (!onStatsUpdate) return;
     
     const elapsedTime = (Date.now() - startTimeRef.current) / 1000;
-    const totalHandovers = beamHandoversRef.current;  // 只計算波束換手
+    const totalHandovers = interSatelliteHandoversRef.current;  // 只計算衛星間換手
     const energyConsumption = totalHandovers * ENERGY_CONFIG.ENERGY_PER_HANDOVER;
     
     const ueCell = findUECell(uePosition, cells);
     const servingSat = activeSatellites.get(servingState.satelliteId || '');
+    
+    // 獲取 UE 所在 Cell 的 Data Queue
+    const ueCellData = cells.find(c => c.id === ueCell?.id);
+    const ueDataQueue = ueCellData?.dataQueue ?? 0;
     
     onStatsUpdate({
       currentSatelliteId: servingState.satelliteId,
@@ -316,13 +271,14 @@ export function BeamHoppingSystem({
       currentRSRP: servingSat && ueCell 
         ? calculateRSRP(servingSat, ueCell.position, satelliteHeight)
         : null,
-      beamHandovers: beamHandoversRef.current,
-      satelliteHandovers: 0,  // 此場景不計算衛星換手
+      beamHandovers: 0,  // 此場景不計算波束換手（波束會隨衛星改變）
+      satelliteHandovers: interSatelliteHandoversRef.current,  // 計算衛星間換手
       totalHandovers,
       elapsedTime,
       energyConsumption,
       averageEnergyPerSecond: elapsedTime > 0 ? energyConsumption / elapsedTime : 0,
       activeBeams: servingState.beams.filter(b => b.isActive).map(b => b.beamId),
+      ueDataQueue,  // 論文 4-1 虛擬佇列
       handoverDetails: {
         ueCellId: ueCell?.id ?? null,
         servingBeamId: servingState.primaryBeamId,
@@ -338,6 +294,9 @@ export function BeamHoppingSystem({
   
   // 每幀更新
   useFrame((_, delta) => {
+    // 等待數據載入完成
+    if (!isLoaded) return;
+    
     elapsedTimeRef.current += delta * timeSpeed;
     const currentTime = elapsedTimeRef.current;
     
@@ -346,20 +305,14 @@ export function BeamHoppingSystem({
     const isNewSlot = currentSlot !== lastSlotRef.current;
     lastSlotRef.current = currentSlot;
     
-    // 循環時間 - 根據實際衛星配置計算
-    // 最後一顆衛星的結束時間 = startTime + duration
-    const lastSat = scriptedSatellites[scriptedSatellites.length - 1];
-    const totalCycleDuration = lastSat ? lastSat.startTime + lastSat.duration : 40;
-    const cycleTime = currentTime % totalCycleDuration;
+    // ========== 使用 SatelliteOrbitCalculator 取得可見衛星 ==========
+    const visibleSatellites = calculator.getVisibleSatellites(currentTime, timeSpeed);
     
-    // 更新衛星位置
+    // 更新衛星位置（轉換格式）
     const newActiveSats = new Map<string, THREE.Vector3>();
-    for (const sat of scriptedSatellites) {
-      const pos = getSatellitePosition(sat, cycleTime);
-      if (pos) {
-        newActiveSats.set(sat.id, pos);
-      }
-    }
+    visibleSatellites.forEach((pos, satId) => {
+      newActiveSats.set(satId, pos);
+    });
     setActiveSatellites(newActiveSats);
     
     // 找到 UE 所在的 Cell
@@ -447,41 +400,47 @@ export function BeamHoppingSystem({
       }
     }
     
-    // ========== Beam Handover 檢測 ==========
-    // 專注於波束內換手（Intra-satellite Beam Handover）
+    // ========== Inter-satellite Handover 檢測 ==========
+    // 論文 4-1 核心：當某個 cell 的服務衛星改變時，發生換手
     const now = Date.now();
     
-    // 更新當前服務衛星（不計數為換手）
+    // 更新當前選中 UE 的服務衛星（用於 UI 顯示）
     if (bestSatId !== lastServingSatRef.current && bestSatId !== null) {
-      lastServingSatRef.current = bestSatId;
-      setHandoverInfo(prev => ({
-        ...prev,
-        currentSatelliteId: bestSatId,
-      }));
-    }
-    
-    // Beam Handover：服務 UE 的波束編號改變
-    if (primaryBeamId !== null && primaryBeamId !== lastServingBeamIdRef.current) {
-      if (lastServingBeamIdRef.current !== null) {
-        beamHandoversRef.current += 1;
-        console.log(`📶 Beam Handover: Beam ${lastServingBeamIdRef.current} → Beam ${primaryBeamId}`);
+      // 檢查是否為衛星間換手
+      if (lastServingSatRef.current !== null && ueCell) {
+        interSatelliteHandoversRef.current += 1;
+        console.log(`🛰️ Inter-satellite Handover [Cell ${ueCell.id}]: ${lastServingSatRef.current} → ${bestSatId}`);
         
         const handoverRecord = {
           time: now,
-          type: 'beam' as const,
-          from: `B${lastServingBeamIdRef.current}`,
-          to: `B${primaryBeamId}`,
+          type: 'satellite' as const,
+          from: lastServingSatRef.current,
+          to: bestSatId,
         };
         
         setHandoverAlert({ ...handoverRecord, timestamp: now });
         setHandoverInfo(prev => ({
           ...prev,
-          currentBeamId: primaryBeamId,
+          currentSatelliteId: bestSatId,
           lastHandoverTime: now,
           handoverHistory: [...prev.handoverHistory, handoverRecord].slice(-10),
         }));
+      } else {
+        setHandoverInfo(prev => ({
+          ...prev,
+          currentSatelliteId: bestSatId,
+        }));
       }
+      lastServingSatRef.current = bestSatId;
+    }
+    
+    // 更新波束編號（用於 UI 顯示，不計為換手）
+    if (primaryBeamId !== null && primaryBeamId !== lastServingBeamIdRef.current) {
       lastServingBeamIdRef.current = primaryBeamId;
+      setHandoverInfo(prev => ({
+        ...prev,
+        currentBeamId: primaryBeamId,
+      }));
     }
     
     // 更新預測資訊
@@ -555,24 +514,120 @@ export function BeamHoppingSystem({
     // 獲取當前激活的 cell IDs（用於渲染）
     const activeCellIds = beams.filter(b => b.isActive).map(b => b.targetCellId);
     
+    // ========== Per-Cell 衛星分配和換手追蹤 ==========
+    // 論文 4-1 核心：每個 cell 可以被不同衛星服務，追蹤每個 cell 的服務衛星變化
+    const cellServingMap = new Map<number, string>(); // cell ID → serving satellite ID
+    
+    for (const cell of cells) {
+      // 找到能看到此 cell 的所有衛星
+      let bestSatForCell: string | null = null;
+      let bestDistForCell = Infinity;
+      
+      newActiveSats.forEach((satPos, satId) => {
+        const visibleCells = getVisibleCells(satPos, cells, 25);
+        if (visibleCells.some(c => c.id === cell.id)) {
+          // 計算衛星到 cell 的距離
+          const dx = satPos.x - cell.position.x;
+          const dz = satPos.z - cell.position.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          
+          if (dist < bestDistForCell) {
+            bestDistForCell = dist;
+            bestSatForCell = satId;
+          }
+        }
+      });
+      
+      if (bestSatForCell) {
+        cellServingMap.set(cell.id, bestSatForCell);
+        
+        // 檢查此 cell 是否發生衛星間換手
+        const prevServingSat = cellServingSatRef.current.get(cell.id);
+        if (prevServingSat && prevServingSat !== bestSatForCell) {
+          interSatelliteHandoversRef.current += 1;
+          console.log(`🔄 Cell ${cell.id} Inter-satellite Handover: ${prevServingSat} → ${bestSatForCell}`);
+        }
+      }
+    }
+    
+    // 更新 cellServingSatRef
+    cellServingSatRef.current = cellServingMap;
+    
+    // 計算每個 Cell 的覆蓋衛星數量（用於顯示重疊區域）
+    const cellCoveringCountMap = new Map<number, number>();
+    for (const cell of cells) {
+      let coverCount = 0;
+      newActiveSats.forEach((satPos) => {
+        const visibleCells = getVisibleCells(satPos, cells, 25);
+        if (visibleCells.some(c => c.id === cell.id)) {
+          coverCount++;
+        }
+      });
+      cellCoveringCountMap.set(cell.id, coverCount);
+    }
+    
+    // 計算「實際有波束照射」的 cells
+    // 只有這些 cells 才標記為 isServed（實線邊框）
+    // 其他 cells 即使在衛星覆蓋範圍內也是 inactive（虛線邊框）
+    const beamTargetCellIds = new Set<number>();
+    
+    // 收集所有衛星的有限波束目標
+    newActiveSats.forEach((satPos, satId) => {
+      const visibleCells = getVisibleCells(satPos, cells, 25);
+      const servingCells = visibleCells
+        .filter(cell => cellServingMap.get(cell.id) === satId);
+      
+      const satGroundPos = new THREE.Vector2(satPos.x, satPos.z);
+      const sortedCells = [...servingCells].sort((a, b) => {
+        const distA = satGroundPos.distanceTo(new THREE.Vector2(a.position.x, a.position.z));
+        const distB = satGroundPos.distanceTo(new THREE.Vector2(b.position.x, b.position.z));
+        return distA - distB;
+      });
+      
+      const isServingUESat = satId === bestSatId;
+      const beamLimit = isServingUESat ? maxBeamsPerSat : Math.min(2, maxBeamsPerSat);
+      sortedCells.slice(0, beamLimit).forEach(c => beamTargetCellIds.add(c.id));
+    });
+    
     // 更新服務狀態
+    // 只有當 UE 所在的 cell 被波束照射時，才設置 primaryCellId
+    const ueIsServed = ueCell ? beamTargetCellIds.has(ueCell.id) : false;
+    
     setServingState({
       satelliteId: bestSatId,
       beams,
-      primaryBeamId,
-      primaryCellId: ueCell?.id || null,
+      primaryBeamId: ueIsServed ? primaryBeamId : null,
+      primaryCellId: ueIsServed ? (ueCell?.id || null) : null,
       currentSlot,
     });
     
     // 更新 Cells 的服務狀態
-    const updatedCells = cells.map(cell => ({
-      ...cell,
-      isServed: activeCellIds.includes(cell.id),
-      servingSatelliteId: activeCellIds.includes(cell.id) ? bestSatId : null,
-      servingBeamColor: activeCellIds.includes(cell.id) 
-        ? FRF3_CELL_COLORS[cell.frequencyGroup]
-        : null,
-    }));
+    // isServed = 有波束照射到（在 beamTargetCellIds 中）
+    const updatedCells = cells.map(cell => {
+      const servingSatId = cellServingMap.get(cell.id);
+      const coveringCount = cellCoveringCountMap.get(cell.id) || 0;
+      const isServed = beamTargetCellIds.has(cell.id);  // 只有被波束照射才是 served
+      
+      // Data Queue 動態更新（論文 4-1 虛擬佇列 M_c）
+      // - 每幀流量到達：arrivalRate * delta
+      // - 被服務時消耗流量（消耗速率 > 到達速率），未被服務時累積
+      const arrivalThisFrame = cell.arrivalRate * delta * 0.5; // 流量到達（降低係數）
+      const serviceRate = isServed ? cell.arrivalRate * delta * 2 : 0; // 服務速率 = 2倍到達速率
+      const newDataQueue = Math.max(0, Math.min(1000, 
+        cell.dataQueue + arrivalThisFrame - serviceRate
+      ));
+      
+      return {
+        ...cell,
+        isServed,
+        servingSatelliteId: isServed ? servingSatId || null : null,
+        servingBeamColor: isServed 
+          ? FRF3_CELL_COLORS[cell.frequencyGroup]
+          : null,
+        coveringSatelliteCount: coveringCount,
+        dataQueue: newDataQueue,
+      };
+    });
     
     setCells(updatedCells);
     if (onCellsUpdate) {
@@ -586,7 +641,94 @@ export function BeamHoppingSystem({
   // 獲取當前激活的 cell IDs
   const activeCellIds = servingState.beams.filter(b => b.isActive).map(b => b.targetCellId);
   
-  // 建立 BeamAssignment 列表給 SatelliteBeams 使用
+  // ========== 計算服務衛星和目標衛星 ==========
+  // 論文 4-1：只需要顯示 2 顆衛星的波束
+  // 1. 服務衛星（Serving Satellite）：當前服務 UE 的衛星
+  // 2. 目標衛星（Target Satellite）：下一個最可能接手的衛星
+  const { servingSatelliteId, targetSatelliteId } = useMemo(() => {
+    const servingSatId = servingState.satelliteId;
+    
+    // 找 UE 所在的 Cell
+    const ueCell = cells.find(c => {
+      if (!uePositions[0]) return false;
+      const dx = c.position.x - uePositions[0].position.x;
+      const dz = c.position.z - uePositions[0].position.z;
+      return Math.sqrt(dx * dx + dz * dz) <= c.radius;
+    });
+    
+    if (!ueCell || !servingSatId) {
+      return { servingSatelliteId: servingSatId, targetSatelliteId: null };
+    }
+    
+    // 找到所有能覆蓋 UE cell 的衛星（排除當前服務衛星）
+    const candidateSatellites: { id: string; distance: number; position: THREE.Vector3 }[] = [];
+    
+    activeSatellites.forEach((satPos, satId) => {
+      if (satId === servingSatId) return; // 排除當前服務衛星
+      
+      const visibleCells = getVisibleCells(satPos, cells, 25);
+      if (visibleCells.some(c => c.id === ueCell.id)) {
+        const dx = satPos.x - ueCell.position.x;
+        const dz = satPos.z - ueCell.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        candidateSatellites.push({ id: satId, distance: dist, position: satPos });
+      }
+    });
+    
+    // 選擇距離第二近的衛星作為目標衛星（最近的是服務衛星）
+    candidateSatellites.sort((a, b) => a.distance - b.distance);
+    const targetSatId = candidateSatellites.length > 0 ? candidateSatellites[0].id : null;
+    
+    return { servingSatelliteId: servingSatId, targetSatelliteId: targetSatId };
+  }, [servingState.satelliteId, activeSatellites, cells, uePositions]);
+  
+  // 建立 **只有服務衛星和目標衛星** 的 beam assignments
+  // 論文 4-1：只顯示這 2 顆衛星的波束，讓換手更清晰可見
+  const perSatelliteBeams = useMemo(() => {
+    const result = new Map<string, { cellIds: number[], position: THREE.Vector3, isTarget: boolean }>();
+    
+    // 只處理服務衛星和目標衛星
+    const relevantSatIds = [servingSatelliteId, targetSatelliteId].filter(Boolean) as string[];
+    
+    for (const satId of relevantSatIds) {
+      const satPos = activeSatellites.get(satId);
+      if (!satPos) continue;
+      
+      // 找出此衛星覆蓋的 cells
+      const visibleCells = getVisibleCells(satPos, cells, 25);
+      
+      // 找出此衛星 **服務** 的 cells（根據 cellServingSatRef）
+      const servingCells = visibleCells
+        .filter(cell => cellServingSatRef.current.get(cell.id) === satId);
+      
+      // 按距離衛星排序
+      const satGroundPos = new THREE.Vector2(satPos.x, satPos.z);
+      const sortedCells = [...servingCells].sort((a, b) => {
+        const distA = satGroundPos.distanceTo(new THREE.Vector2(a.position.x, a.position.z));
+        const distB = satGroundPos.distanceTo(new THREE.Vector2(b.position.x, b.position.z));
+        return distA - distB;
+      });
+      
+      // 服務衛星：顯示較多波束（maxBeamsPerSat）
+      // 目標衛星：也顯示波束，但標記為 target
+      const isServingSat = satId === servingSatelliteId;
+      const isTargetSat = satId === targetSatelliteId;
+      const beamLimit = isServingSat ? maxBeamsPerSat : Math.min(3, maxBeamsPerSat);
+      const limitedCellIds = sortedCells.slice(0, beamLimit).map(c => c.id);
+      
+      if (limitedCellIds.length > 0) {
+        result.set(satId, { 
+          cellIds: limitedCellIds, 
+          position: satPos.clone(),
+          isTarget: isTargetSat,
+        });
+      }
+    }
+    
+    return result;
+  }, [activeSatellites, cells, maxBeamsPerSat, servingSatelliteId, targetSatelliteId]);
+  
+  // 舊的 beamAssignments 保留給統計使用
   const beamAssignments: BeamAssignment[] = servingState.beams.map(b => ({
     beamId: b.beamId,
     cellId: b.targetCellId,
@@ -596,96 +738,149 @@ export function BeamHoppingSystem({
   return (
     <group>
       {/* ========== 衛星模型 ========== */}
-      {Array.from(activeSatellites.entries()).map(([satId, pos]) => (
-        <group key={satId} position={[pos.x, pos.y, pos.z]}>
-          <primitive object={scene.clone()} scale={6} />
-          <Text
-            position={[0, 50, 0]}
-            fontSize={16}
-            color={satId === servingState.satelliteId ? '#00ff00' : '#888888'}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={1.5}
-            outlineColor="#000000"
-          >
-            {satId}
-          </Text>
-          {/* 顯示服務的 Beam 數量 */}
-          {satId === servingState.satelliteId && (
+      {Array.from(activeSatellites.entries()).map(([satId, pos]) => {
+        const satBeamInfo = perSatelliteBeams.get(satId);
+        const hasBeams = satBeamInfo && satBeamInfo.cellIds.length > 0;
+        const isServing = satId === servingSatelliteId;
+        const isTarget = satId === targetSatelliteId;
+        
+        // 決定衛星顏色和標籤
+        let satColor = '#666666';  // 預設灰色（無波束）
+        let roleLabel = '';
+        
+        if (isServing) {
+          satColor = '#00ff00';  // 綠色 = 服務衛星
+          roleLabel = '📡 SERVING';
+        } else if (isTarget) {
+          satColor = '#ffaa00';  // 橙色 = 目標衛星
+          roleLabel = '🎯 TARGET';
+        }
+        
+        return (
+          <group key={satId} position={[pos.x, pos.y, pos.z]}>
+            <primitive object={scene.clone()} scale={6} />
+            {/* 衛星 ID */}
             <Text
-              position={[0, 35, 0]}
-              fontSize={10}
-              color="#ffff00"
+              position={[0, 50, 0]}
+              fontSize={16}
+              color={satColor}
               anchorX="center"
               anchorY="middle"
-              outlineWidth={1}
+              outlineWidth={1.5}
               outlineColor="#000000"
             >
-              {`${beamAssignments.filter(b => b.isActive).length} beams | UE→B${servingState.primaryBeamId || '?'}`}
+              {satId}
+            </Text>
+            {/* 角色標籤（只顯示給服務/目標衛星） */}
+            {roleLabel && (
+              <Text
+                position={[0, 35, 0]}
+                fontSize={12}
+                color={satColor}
+                anchorX="center"
+                anchorY="middle"
+                outlineWidth={1.5}
+                outlineColor="#000000"
+              >
+                {roleLabel}
+              </Text>
+            )}
+            {/* 波束數量（只顯示給有波束的衛星） */}
+            {hasBeams && (
+              <Text
+                position={[0, 20, 0]}
+                fontSize={10}
+                color={satColor}
+                anchorX="center"
+                anchorY="middle"
+                outlineWidth={1}
+                outlineColor="#000000"
+              >
+                {`${satBeamInfo.cellIds.length} beams`}
+              </Text>
+            )}
+          </group>
+        );
+      })}
+      
+      {/* ========== UE 到服務衛星的連線 ========== */}
+      {/* 只有當 UE 所在的 Cell 被波束照射時才顯示連線 */}
+      {servingState.satelliteId && 
+       servingState.primaryCellId !== null &&
+       activeSatellites.has(servingState.satelliteId) && (
+        <group>
+          {/* 主連線 - 從 UE 到衛星 */}
+          <Line
+            points={[
+              [uePosition.x, 15, uePosition.z],
+              [
+                activeSatellites.get(servingState.satelliteId)!.x,
+                activeSatellites.get(servingState.satelliteId)!.y,
+                activeSatellites.get(servingState.satelliteId)!.z,
+              ],
+            ]}
+            color={handoverAlert ? '#ff6600' : '#00ff00'}
+            lineWidth={handoverAlert ? 5 : 3}
+            dashed={!!handoverAlert}
+            dashSize={15}
+            gapSize={8}
+          />
+          {/* 換手時顯示標籤 */}
+          {handoverAlert && (
+            <Text
+              position={[
+                (uePosition.x + activeSatellites.get(servingState.satelliteId)!.x) / 2,
+                (15 + activeSatellites.get(servingState.satelliteId)!.y) / 2 + 30,
+                (uePosition.z + activeSatellites.get(servingState.satelliteId)!.z) / 2,
+              ]}
+              fontSize={16}
+              color="#ff6600"
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={2}
+              outlineColor="#000000"
+            >
+              {`${handoverAlert.from} → ${handoverAlert.to}`}
             </Text>
           )}
         </group>
-      ))}
-      
-      {/* ========== Handover 提示 ========== */}
-      {handoverAlert && (
-        <group position={[0, satelliteHeight + 100, 0]}>
-          <Text
-            position={[0, 0, 0]}
-            fontSize={24}
-            color={handoverAlert.type === 'satellite' ? '#ff6600' : '#00ffff'}
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={2}
-            outlineColor="#000000"
-          >
-            {handoverAlert.type === 'satellite' 
-              ? `🛰️ SAT HANDOVER` 
-              : `📶 BEAM HANDOVER`}
-          </Text>
-          <Text
-            position={[0, -30, 0]}
-            fontSize={18}
-            color="#ffffff"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={1.5}
-            outlineColor="#000000"
-          >
-            {`${handoverAlert.from} → ${handoverAlert.to}`}
-          </Text>
-        </group>
       )}
-      
-      {/* ========== UE 位置標記（簡化版） ========== */}
+
+      {/* ========== UE 位置標記 ========== */}
       <group position={[uePosition.x, 10, uePosition.z]}>
         <mesh>
           <cylinderGeometry args={[15, 15, 5, 6]} />
-          <meshBasicMaterial color="#ff00ff" transparent opacity={0.6} />
+          <meshBasicMaterial color="#00ffff" transparent opacity={0.7} />
         </mesh>
         <Text
-          position={[0, 15, 0]}
-          fontSize={10}
-          color="#ff00ff"
+          position={[0, 20, 0]}
+          fontSize={12}
+          color="#00ffff"
           anchorX="center"
           anchorY="middle"
-          outlineWidth={1}
+          outlineWidth={1.5}
           outlineColor="#000000"
         >
           UE
         </Text>
       </group>
       
-      {/* ========== Beams（從衛星到服務的 Cells） ========== */}
-      {servingState.satelliteId && activeSatellites.has(servingState.satelliteId) && (
+      {/* ========== Beams（每顆衛星到其服務的 Cells） ========== */}
+      {/* 論文 4-1：多衛星同時服務不同 Cells，展示衛星間換手 */}
+      {Array.from(perSatelliteBeams.entries()).map(([satId, { cellIds, position }]) => (
         <SatelliteBeams
-          satelliteId={servingState.satelliteId}
-          satellitePosition={activeSatellites.get(servingState.satelliteId)!}
+          key={satId}
+          satelliteId={satId}
+          satellitePosition={position}
           cells={cells}
-          beamAssignments={beamAssignments}
+          beamAssignments={cellIds.map((cellId, idx) => ({
+            beamId: idx + 1,
+            cellId,
+            isActive: true,
+          }))}
           primaryCellId={servingState.primaryCellId || undefined}
         />
-      )}
+      ))}
     </group>
   );
 }

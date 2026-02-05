@@ -160,6 +160,81 @@ export function BeamHoppingSidebar({
           </div>
         </div>
 
+        {/* Data Queue - 論文 4-1 Fig.1 虛擬佇列 M_c */}
+        <div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            marginBottom: '14px',
+          }}>
+            <Activity size={20} color="#ff66aa" />
+            <div style={{
+              fontSize: '17px',
+              color: '#ffffff',
+              fontWeight: '600',
+            }}>
+              Data Queue (M<sub>c</sub>)
+            </div>
+          </div>
+          <div style={{
+            padding: '16px',
+            backgroundColor: 'rgba(255, 102, 170, 0.08)',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 102, 170, 0.25)',
+          }}>
+            {/* Queue 進度條 */}
+            <div style={{
+              marginBottom: '12px',
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: '6px',
+              }}>
+                <span style={{ fontSize: '13px', color: '#cccccc' }}>
+                  Cell {stats?.handoverDetails?.ueCellId ?? '-'}
+                </span>
+                <span style={{ 
+                  fontSize: '13px', 
+                  color: (stats?.ueDataQueue ?? 0) > 800 ? '#ff4444' : 
+                         (stats?.ueDataQueue ?? 0) > 400 ? '#ffaa00' : '#44ff88',
+                  fontFamily: 'monospace',
+                }}>
+                  {Math.round(stats?.ueDataQueue ?? 0)} / 1000
+                </span>
+              </div>
+              {/* 進度條背景 */}
+              <div style={{
+                width: '100%',
+                height: '20px',
+                backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                borderRadius: '4px',
+                overflow: 'hidden',
+                position: 'relative',
+              }}>
+                {/* 進度條填充 */}
+                <div style={{
+                  width: `${Math.min((stats?.ueDataQueue ?? 0) / 10, 100)}%`,
+                  height: '100%',
+                  backgroundColor: (stats?.ueDataQueue ?? 0) > 800 ? '#ff4444' : 
+                                   (stats?.ueDataQueue ?? 0) > 400 ? '#ffaa00' : '#44ff88',
+                  borderRadius: '4px',
+                  transition: 'width 0.2s ease, background-color 0.3s ease',
+                }} />
+              </div>
+            </div>
+            {/* 說明文字 */}
+            <div style={{
+              fontSize: '12px',
+              color: '#888888',
+              fontStyle: 'italic',
+            }}>
+              Virtual queue for handover frequency control
+            </div>
+          </div>
+        </div>
+
         {/* 換手統計 */}
         <div>
           <div style={{

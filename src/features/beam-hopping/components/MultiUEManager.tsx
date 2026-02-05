@@ -42,7 +42,9 @@ export interface UEHandoverState {
 }
 
 /**
- * 預設的 UE 配置（集中分佈以便觀察換手）
+ * 預設的 UE 配置
+ * 論文 4-1 場景：使用單一 UE 更易聚焦觀察 inter-satellite handover
+ * 
  * 4x5 網格的 Cell ID 分佈：
  *   1  2  3  4  5
  *   6  7  8  9  10
@@ -53,26 +55,8 @@ export const DEFAULT_UE_CONFIGS: UEConfig[] = [
   {
     id: 'ue-1',
     name: 'UE-1',
-    cellId: 7,      // 左中
-    color: '#ff6b6b', // 珊瑚紅
-  },
-  {
-    id: 'ue-2',
-    name: 'UE-2',
-    cellId: 8,      // 中央
-    color: '#4ecdc4', // 青色
-  },
-  {
-    id: 'ue-3',
-    name: 'UE-3',
-    cellId: 9,      // 右中
-    color: '#ffe66d', // 金黃色
-  },
-  {
-    id: 'ue-4',
-    name: 'UE-4',
-    cellId: 13,     // 中下
-    color: '#a29bfe', // 淡紫色
+    cellId: 8,      // 中央位置，便於觀察多衛星覆蓋區域的換手
+    color: '#00ffff', // 青色，醒目
   },
 ];
 
