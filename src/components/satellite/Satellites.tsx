@@ -11,6 +11,18 @@ import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { calculatePathLoss } from '@/utils/satellite/PathLossCalculator';
 import { GeometricConfig } from '../ui/sidebar/GeometricMethodPanel';
 import { ENERGY_CONFIG } from '@/config/energy.config';
+import {
+  SatelliteBeams,
+  BeamAssignment,
+  getVisibleCells,
+  selectServingCells,
+} from '@/features/beam-hopping/components/SatelliteBeams';
+import {
+  type EarthFixedCell,
+  getBeamPolarization,
+  POLARIZATION_COLORS,
+  getNeighborCellIds,
+} from '@/features/beam-hopping/components/EarthFixedCells';
 import * as THREE from 'three';
 
 interface SatellitesProps {
@@ -20,6 +32,14 @@ interface SatellitesProps {
   rsrpConfig?: RSRPHandoverConfig;
   geometricConfig?: GeometricConfig;
   onStatsUpdate?: (stats: HandoverStats, satelliteId: string | null, phase: string) => void;
+  /** 是否顯示波束 */
+  showBeams?: boolean;
+  /** Ground cells 用於波束渲染 */
+  cells?: EarthFixedCell[];
+  /** 顯示波束標籤 */
+  showBeamLabels?: boolean;
+  /** Cells 更新回調（波束分配變更時） */
+  onCellsUpdate?: (cells: EarthFixedCell[]) => void;
 }
 
 // 根據換手方法生成初始統計值（模擬已運行一段時間）
@@ -90,7 +110,11 @@ export function Satellites({
   handoverMethod = 'geometric',
   rsrpConfig,
   geometricConfig,
-  onStatsUpdate
+  onStatsUpdate,
+  showBeams = false,
+  cells = [],
+  showBeamLabels = true,
+  onCellsUpdate,
 }: SatellitesProps) {
   const [calculator] = useState(() => new SatelliteOrbitCalculator());
   const [isLoaded, setIsLoaded] = useState(false);
@@ -437,6 +461,138 @@ export function Satellites({
     />
   )), [satelliteModels, isOneWeb, handoverState?.currentSatelliteId, handoverState?.targetSatelliteId]);
 
+  // 計算波束分配 (當 showBeams 啟用且有 cells 時)
+  // 支援多顆衛星（服務中 + 目標衛星）
+  const beamDataList = useMemo(() => {
+    if (!showBeams || cells.length === 0 || !handoverState?.currentSatelliteId) {
+      return [];
+    }
+
+    const result: Array<{
+      satelliteId: string;
+      satellitePosition: THREE.Vector3;
+      assignments: BeamAssignment[];
+      primaryCellId: number;
+      isTarget: boolean;
+    }> = [];
+
+    // 收集要顯示波束的衛星 ID（服務中 + 目標）
+    const satelliteIds = [handoverState.currentSatelliteId];
+    if (handoverState.targetSatelliteId && handoverState.phase !== 'stable') {
+      satelliteIds.push(handoverState.targetSatelliteId);
+    }
+
+    satelliteIds.forEach((satId, satIndex) => {
+      const satPosition = visibleSatellitesState.get(satId);
+      if (!satPosition) return;
+
+      // 計算可見 cells
+      const visibleCells = getVisibleCells(satPosition, cells, 25);
+      if (visibleCells.length === 0) return;
+
+      // 選擇要服務的 cells (最多 4 個)
+      const servingCellIds = selectServingCells(visibleCells, 4, satPosition);
+
+      // 建立波束分配
+      const assignments: BeamAssignment[] = servingCellIds.map((cellId, index) => ({
+        beamId: index + 1,
+        cellId,
+        isActive: true,
+      }));
+
+      // 找出 UE 所在的 cell (簡化：選擇距離原點最近的 cell)
+      const ueCellId = servingCellIds[0];
+
+      result.push({
+        satelliteId: satId,
+        satellitePosition: satPosition,
+        assignments,
+        primaryCellId: ueCellId,
+        isTarget: satIndex > 0,
+      });
+    });
+
+    return result;
+  }, [showBeams, cells, handoverState?.currentSatelliteId, handoverState?.targetSatelliteId, handoverState?.phase, visibleSatellitesState]);
+
+  // 更新 cells 狀態（根據波束分配）
+  useEffect(() => {
+    if (!onCellsUpdate || cells.length === 0) return;
+
+    // 建立 cellId -> beam 分配的映射（優先使用服務中衛星的分配）
+    const beamAssignmentMap = new Map<number, { beamId: number; satelliteId: string }>();
+    beamDataList.forEach(beamData => {
+      // 服務中衛星的分配優先（先加入的優先）
+      beamData.assignments.forEach(assignment => {
+        if (!beamAssignmentMap.has(assignment.cellId)) {
+          beamAssignmentMap.set(assignment.cellId, {
+            beamId: assignment.beamId,
+            satelliteId: beamData.satelliteId,
+          });
+        }
+      });
+    });
+
+    // 計算被干擾的 cells（Paper 4-1: inter-beam interference）
+    // 被服務 cell 的相鄰 cells 會受到波束溢出干擾
+    const interferenceMap = new Map<number, Array<{ satelliteId: string; beamId: number; polarization: 'A' | 'B' }>>();
+    beamAssignmentMap.forEach(({ beamId, satelliteId }, servedCellId) => {
+      const neighborIds = getNeighborCellIds(servedCellId, cells);
+      const polarization = getBeamPolarization(beamId);
+      neighborIds.forEach(neighborId => {
+        // 鄰居本身不是被服務的 cell 才標記為干擾
+        if (!beamAssignmentMap.has(neighborId)) {
+          const sources = interferenceMap.get(neighborId) || [];
+          sources.push({ satelliteId, beamId, polarization });
+          interferenceMap.set(neighborId, sources);
+        }
+      });
+    });
+
+    // 更新所有 cells 的服務狀態與干擾狀態
+    const updatedCells = cells.map(cell => {
+      const assignment = beamAssignmentMap.get(cell.id);
+      if (assignment) {
+        const polarization = getBeamPolarization(assignment.beamId);
+        return {
+          ...cell,
+          isServed: true,
+          servingSatelliteId: assignment.satelliteId,
+          servingBeamId: assignment.beamId,
+          servingPolarization: polarization,
+          servingBeamColor: POLARIZATION_COLORS[polarization],
+          isInterfered: false,
+          interferingSources: [],
+        };
+      }
+      const interference = interferenceMap.get(cell.id);
+      if (interference) {
+        return {
+          ...cell,
+          isServed: false,
+          servingSatelliteId: null,
+          servingBeamId: null,
+          servingPolarization: null,
+          servingBeamColor: null,
+          isInterfered: true,
+          interferingSources: interference,
+        };
+      }
+      return {
+        ...cell,
+        isServed: false,
+        servingSatelliteId: null,
+        servingBeamId: null,
+        servingPolarization: null,
+        servingBeamColor: null,
+        isInterfered: false,
+        interferingSources: [],
+      };
+    });
+
+    onCellsUpdate(updatedCells);
+  }, [beamDataList, cells, onCellsUpdate]);
+
   if (error) {
     console.error('衛星系統錯誤:', error);
     return null;
@@ -474,6 +630,18 @@ export function Satellites({
 
       {/* Satellite Labels */}
       {satelliteLabels}
+
+      {/* 衛星波束 (當 showBeams 啟用時，支援多顆衛星) */}
+      {showBeams && beamDataList.map(beamData => (
+        <SatelliteBeams
+          key={`beams-${beamData.satelliteId}`}
+          satelliteId={beamData.satelliteId}
+          satellitePosition={beamData.satellitePosition}
+          cells={cells}
+          beamAssignments={beamData.assignments}
+          primaryCellId={beamData.primaryCellId}
+        />
+      ))}
     </group>
   );
 }

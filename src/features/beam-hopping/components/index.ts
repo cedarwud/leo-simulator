@@ -1,13 +1,9 @@
-export { BeamHoppingScene } from './BeamHoppingScene';
-export { BeamHoppingDemo } from './BeamHoppingDemo';
-export { BeamHoppingSystem } from './BeamHoppingSystem';
-export type { BeamManagementStats } from './BeamHoppingSystem';
-export { BeamCone, BeamCones } from './BeamCone';
-export { BeamConnection, ActiveBeamConnection } from './BeamConnection';
-export { GroundCell, GroundCells } from './GroundCells';
-export { BeamLabel, BeamLabels } from './BeamLabel';
-export { WideBeam } from './WideBeam';
-export { SatelliteUnit, DistantSatelliteMarker } from './SatelliteUnit';
-export { MovingSatelliteBeams } from './MovingSatelliteBeams';
-export { MultiUEManager, DEFAULT_UE_CONFIGS } from './MultiUEManager';
-export type { UEConfig, UEHandoverState } from './MultiUEManager';
+// 波束視覺化元件
+export { SatelliteBeams, SatelliteToCellBeam } from './SatelliteBeams';
+export type { BeamAssignment } from './SatelliteBeams';
+export { getVisibleCells, selectServingCells } from './SatelliteBeams';
+
+// 地面 Cells 元件
+export { EarthFixedCells, generateEarthFixedCells, DEFAULT_CELL_CONFIG } from './EarthFixedCells';
+export type { EarthFixedCell } from './EarthFixedCells';
+export { POLARIZATION_COLORS, getBeamPolarization, getBeamColor, getNeighborCellIds } from './EarthFixedCells';

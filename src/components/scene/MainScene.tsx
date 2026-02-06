@@ -1,4 +1,4 @@
-import React, { Suspense, useRef, useState } from 'react';
+import React, { Suspense, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -17,6 +17,13 @@ import { RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
 import { ENERGY_CONFIG } from '@/config/energy.config';
 import { Starfield } from '../../shared/components';
+import { VisualizationToggles, DEFAULT_VISUALIZATION_TOGGLES } from '@/types/unified-scene';
+import {
+  EarthFixedCells,
+  generateEarthFixedCells,
+  DEFAULT_CELL_CONFIG,
+  EarthFixedCell,
+} from '@/features/beam-hopping/components/EarthFixedCells';
 
 // Loading indicator in 3D scene
 function Loader() {
@@ -39,6 +46,25 @@ export function MainScene() {
     const [showDebug] = useState(false); // Set to true to show debug grid
     const [constellation, setConstellation] = useState<ConstellationType>('starlink');
     const [handoverMethod, setHandoverMethod] = useState<HandoverMethodType>('rsrp');
+
+    // Visualization toggles for optional features
+    const [visualizationToggles, setVisualizationToggles] = useState<VisualizationToggles>(
+      DEFAULT_VISUALIZATION_TOGGLES
+    );
+
+    // Ground cells (generated once, used when showGroundCells is enabled)
+    const groundCells = useMemo(() => generateEarthFixedCells(DEFAULT_CELL_CONFIG), []);
+    const [cells, setCells] = useState<EarthFixedCell[]>(groundCells);
+
+    // Handle toggle changes
+    const handleToggleChange = useCallback((key: keyof VisualizationToggles, value: boolean) => {
+      setVisualizationToggles(prev => ({ ...prev, [key]: value }));
+    }, []);
+
+    // Handle cells update from Satellites (beam assignments)
+    const handleCellsUpdate = useCallback((updatedCells: EarthFixedCell[]) => {
+      setCells(updatedCells);
+    }, []);
     const [handoverStats, setHandoverStats] = useState<HandoverStats>({
       totalHandovers: 0,
       pingPongEvents: 0,
@@ -112,6 +138,8 @@ export function MainScene() {
           onTimeSpeedChange={setTimeSpeed}
           onAnimationSpeedChange={setAnimationSpeed}
           onCandidateCountChange={setCandidateCount}
+          visualizationToggles={visualizationToggles}
+          onToggleChange={handleToggleChange}
         />
   
         {/* Right decision details panel */}
@@ -193,6 +221,14 @@ export function MainScene() {
           <Suspense fallback={null}>
             <UAV position={[0, 10, 0]} scale={10} />
           </Suspense>
+
+          {/* Ground Cells (optional - controlled by toggle) */}
+          {visualizationToggles.showGroundCells && (
+            <EarthFixedCells
+              cells={cells}
+              showLabels={visualizationToggles.showCellLabels}
+            />
+          )}
   
           {/* Satellite system */}
           <Suspense fallback={null}>
@@ -203,6 +239,10 @@ export function MainScene() {
               rsrpConfig={rsrpConfig}
               geometricConfig={geometricConfig}
               onStatsUpdate={handleStatsUpdate}
+              showBeams={visualizationToggles.showBeams}
+              cells={cells}
+              showBeamLabels={visualizationToggles.showBeamLabels}
+              onCellsUpdate={handleCellsUpdate}
               key={`${constellation}-${handoverMethod}`} // Force reload when constellation or method changes
             />
           </Suspense>

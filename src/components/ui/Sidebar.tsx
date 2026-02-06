@@ -3,6 +3,8 @@ import { HandoverMethodType, HANDOVER_METHODS, HandoverStats } from '@/types/han
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { GlobalControls } from './sidebar/GlobalControls';
 import { EnergyEfficiencyPanel } from './sidebar/EnergyEfficiencyPanel';
+import { VisualizationTogglePanel } from './sidebar/VisualizationTogglePanel';
+import type { VisualizationToggles } from '@/types/unified-scene';
 
 // Derive readable text colors based on background brightness
 function getContrastTextColor(hex: string) {
@@ -47,6 +49,10 @@ interface SidebarProps {
   onTimeSpeedChange: (speed: number) => void;
   onAnimationSpeedChange: (speed: 'fast' | 'normal' | 'slow') => void;
   onCandidateCountChange: (count: number) => void;
+
+  // 視覺化開關
+  visualizationToggles: VisualizationToggles;
+  onToggleChange: (key: keyof VisualizationToggles, value: boolean) => void;
 }
 
 export function Sidebar({
@@ -62,7 +68,9 @@ export function Sidebar({
   candidateCount,
   onTimeSpeedChange,
   onAnimationSpeedChange,
-  onCandidateCountChange
+  onCandidateCountChange,
+  visualizationToggles,
+  onToggleChange
 }: SidebarProps) {
   const method = HANDOVER_METHODS[currentMethod];
   const [connectionBorderColor, setConnectionBorderColor] = useState('#0088ff');
@@ -425,6 +433,15 @@ export function Sidebar({
             onTimeSpeedChange={onTimeSpeedChange}
             onAnimationSpeedChange={onAnimationSpeedChange}
             onCandidateCountChange={onCandidateCountChange}
+          />
+
+          {/* 分隔線 */}
+          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+
+          {/* 視覺化選項 */}
+          <VisualizationTogglePanel
+            toggles={visualizationToggles}
+            onToggleChange={onToggleChange}
           />
 
           {/* 分隔線 */}

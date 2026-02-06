@@ -67,6 +67,35 @@ export interface EarthFixedCell {
   servingBeamColor: string | null;
   /** 能覆蓋此 cell 的衛星數量（用於顯示重疊區域）*/
   coveringSatelliteCount?: number;
+  /** 是否受到鄰近波束的干擾 (Paper 4-1: inter-beam interference) */
+  isInterfered: boolean;
+  /** 干擾來源列表（可能被多個 beam 同時干擾） */
+  interferingSources: Array<{
+    satelliteId: string;
+    beamId: number;
+    polarization: 'A' | 'B';
+  }>;
+}
+
+/**
+ * 取得指定 cell 的相鄰 cell IDs
+ * 六邊形網格中相鄰 cell 中心距離 = √3 × radius
+ */
+export function getNeighborCellIds(cellId: number, cells: EarthFixedCell[]): number[] {
+  const targetCell = cells.find(c => c.id === cellId);
+  if (!targetCell) return [];
+
+  const maxNeighborDist = targetCell.radius * Math.sqrt(3) * 1.1; // 加 10% 容差
+
+  return cells
+    .filter(c => {
+      if (c.id === cellId) return false;
+      const dx = c.position.x - targetCell.position.x;
+      const dz = c.position.z - targetCell.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      return dist < maxNeighborDist;
+    })
+    .map(c => c.id);
 }
 
 /**
@@ -129,15 +158,17 @@ function EarthFixedCellComponent({
 
   // 論文 4-1 顏色邏輯：
   // - 被服務時：顯示服務波束的極化顏色（亮色）
-  // - 未被服務時：淺灰色（仍可見）
+  // - 受干擾時：紅色半透明（inter-beam interference）
+  // - 未受影響：淺灰色（仍可見）
   const baseColor = cell.isServed && cell.servingPolarization
     ? POLARIZATION_COLORS[cell.servingPolarization]
-    : '#aaaaaa';  // 未被服務時為淺灰色
+    : cell.isInterfered
+      ? '#ff2222'     // 受干擾：鮮紅色
+      : '#aaaaaa';    // 未受影響：淺灰色
 
-  // 填充透明度：被服務時更亮，未被服務時仍可見
-  const fillOpacity = cell.isServed ? 0.5 : 0.25;
-  const borderOpacity = cell.isServed ? 1.0 : 0.7;
-  const borderWidth = cell.isServed ? 4 : 2.5;
+  const fillOpacity = cell.isServed ? 0.5 : cell.isInterfered ? 0.7 : 0.25;
+  const borderOpacity = cell.isServed ? 1.0 : cell.isInterfered ? 1.0 : 0.7;
+  const borderWidth = cell.isServed ? 4 : cell.isInterfered ? 4 : 2.5;
   
   return (
     <group position={[cell.position.x, 3, cell.position.z]}>
@@ -286,6 +317,8 @@ export function generateEarthFixedCells(config: {
         servingBeamId: null,
         servingPolarization: null,  // 論文 4-1：由服務波束決定
         servingBeamColor: null,
+        isInterfered: false,
+        interferingSources: [],
       });
       
       cellId++;
