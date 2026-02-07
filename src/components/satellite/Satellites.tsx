@@ -4,6 +4,8 @@ import { useGLTF } from '@react-three/drei';
 import { SatelliteOrbitCalculator } from '@/utils/satellite/SatelliteOrbitCalculator';
 import { EnhancedHandoverManager } from '@/utils/satellite/EnhancedHandoverManager';
 import { RSRPHandoverManager, RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
+import { Paper41HandoverManager, Paper41HandoverResult } from '@/utils/satellite/Paper41HandoverManager';
+import { DEFAULT_PAPER41_CONFIG } from '@/types/paper41';
 import { EnhancedSatelliteLinks } from './EnhancedSatelliteLinks';
 import { SatelliteLabel } from './SatelliteLabel';
 import { HandoverState } from '@/types/handover';
@@ -40,6 +42,12 @@ interface SatellitesProps {
   showBeamLabels?: boolean;
   /** Cells 更新回調（波束分配變更時） */
   onCellsUpdate?: (cells: EarthFixedCell[]) => void;
+  /** WMIS beam hopping assignments (Paper 4-1 Algorithm 2, v2 with satId) */
+  wmisAssignments?: Array<{ cellId: number; beamId: number; polarization: 'A' | 'B'; satId?: string }>;
+  /** Epoch-based handover result from Algorithm 1 (Paper 4-1) */
+  epochHandoverResult?: Paper41HandoverResult | null;
+  /** Position of most-assigned satellite from epoch decision (algorithmic coordinates) */
+  epochPrimarySatPosition?: { x: number; y: number; z: number } | null;
 }
 
 // 根據換手方法生成初始統計值（模擬已運行一段時間）
@@ -72,6 +80,13 @@ const generateInitialStats = (method: HandoverMethodType): HandoverStats => {
       avgConnectionDuration = 70;
       totalHandovers = Math.floor(initialElapsedTime / avgConnectionDuration);
       pingPongRate = 0.05; // 5% ping-pong 率
+      break;
+
+    case 'paper41':
+      // Paper 4-1：條件觸發，大幅減少換手，約每 100 秒
+      avgConnectionDuration = 100;
+      totalHandovers = Math.floor(initialElapsedTime / avgConnectionDuration);
+      pingPongRate = 0.02; // 2% ping-pong 率（swap matching 優化）
       break;
   }
 
@@ -115,6 +130,9 @@ export function Satellites({
   cells = [],
   showBeamLabels = true,
   onCellsUpdate,
+  wmisAssignments,
+  epochHandoverResult,
+  epochPrimarySatPosition,
 }: SatellitesProps) {
   const [calculator] = useState(() => new SatelliteOrbitCalculator());
   const [isLoaded, setIsLoaded] = useState(false);
@@ -134,12 +152,18 @@ export function Satellites({
   const lastSatelliteIdRef = useRef<string | null>(null);
   const connectionStartTimeRef = useRef<number>(0);
   const lastHandoverTimeRef = useRef<number>(0);
+  // Track last-seen epoch handover result to detect new epochs (avoid double-counting)
+  const lastEpochResultRef = useRef<Paper41HandoverResult | null>(null);
+  // Epoch handover animation timer (frames remaining in 'switching' phase)
+  const epochHandoverAnimRef = useRef<number>(0);
 
   // 動態創建換手管理器（根據選擇的方法）
   const handoverManager = useMemo(() => {
     switch (handoverMethod) {
       case 'rsrp':
         return new RSRPHandoverManager();
+      case 'paper41':
+        return new Paper41HandoverManager(DEFAULT_PAPER41_CONFIG);
       case 'geometric':
       default:
         return new EnhancedHandoverManager();
@@ -154,6 +178,8 @@ export function Satellites({
     lastSatelliteIdRef.current = null;
     connectionStartTimeRef.current = newStats.elapsedTime;
     lastHandoverTimeRef.current = newStats.elapsedTime;
+    lastEpochResultRef.current = null;
+    epochHandoverAnimRef.current = 0;
   }, [handoverMethod]);
 
   // 🔧 當配置參數改變時，更新換手管理器的配置
@@ -203,28 +229,73 @@ export function Satellites({
     );
 
     // 更新換手狀態
-    const newHandoverState = handoverManager.update(visibleSatellites, elapsedTimeRef.current, timeSpeed);
-    setHandoverState(newHandoverState);
-    setVisibleSatellitesState(visibleSatellites); // Restored to fix missing links
+    let newHandoverState: HandoverState;
+    setVisibleSatellitesState(visibleSatellites);
 
-    // 調試 log（換手狀態監控）
-    const currentSecond = Math.floor(elapsedTimeRef.current);
+    if (handoverMethod === 'paper41') {
+      // ─── Epoch-driven handover (no frame-based proxy) ───
+      // Satellite selection: match epoch's primary satellite by closest 3D position
+      let bestSatId: string | null = null;
+      if (epochPrimarySatPosition && visibleSatellites.size > 0) {
+        // Find visual satellite closest to the algorithmic primary satellite's position
+        let bestDist = Infinity;
+        const ep = epochPrimarySatPosition;
+        for (const [satId, pos] of visibleSatellites) {
+          const dx = pos.x - ep.x, dy = pos.y - ep.y, dz = pos.z - ep.z;
+          const d = dx * dx + dy * dy + dz * dz;
+          if (d < bestDist) { bestDist = d; bestSatId = satId; }
+        }
+      } else {
+        // Fallback: highest elevation when no epoch data available yet
+        let bestElev = -Infinity;
+        for (const [satId, pos] of visibleSatellites) {
+          const dist = pos.length();
+          const elev = dist > 0 ? Math.asin(pos.y / dist) : 0;
+          if (elev > bestElev) { bestElev = elev; bestSatId = satId; }
+        }
+      }
+
+      // Detect new epoch handover events
+      if (epochHandoverResult && epochHandoverResult !== lastEpochResultRef.current) {
+        lastEpochResultRef.current = epochHandoverResult;
+        const count = epochHandoverResult.handoverCount;
+        if (count > 0) {
+          statsRef.current.totalHandovers += count;
+          statsRef.current.energyConsumption += count * ENERGY_CONFIG.ENERGY_PER_HANDOVER;
+          lastHandoverTimeRef.current = elapsedTimeRef.current;
+          connectionStartTimeRef.current = elapsedTimeRef.current;
+          epochHandoverAnimRef.current = 45; // ~0.75s animation at 60fps
+        }
+      }
+
+      // Handover phase from epoch events
+      const isAnimating = epochHandoverAnimRef.current > 0;
+      if (isAnimating) epochHandoverAnimRef.current--;
+
+      newHandoverState = {
+        phase: isAnimating ? 'switching' : 'stable',
+        currentSatelliteId: bestSatId,
+        targetSatelliteId: null,
+        candidateSatelliteIds: Array.from(visibleSatellites.keys()),
+        progress: isAnimating ? 1 - epochHandoverAnimRef.current / 45 : 0,
+        signalStrength: { current: 1.0, target: 0.0 },
+      };
+    } else {
+      // ─── Other methods: frame-based handover manager ───
+      newHandoverState = handoverManager.update(visibleSatellites, elapsedTimeRef.current, timeSpeed);
+    }
+
+    setHandoverState(newHandoverState);
 
     // 更新統計數據
     statsRef.current.elapsedTime = elapsedTimeRef.current;
 
-    // 檢測換手事件
+    // 檢測換手事件 (non-paper41 methods only — paper41 uses epoch counts above)
     const currentSatId = newHandoverState.currentSatelliteId;
-    if (currentSatId && lastSatelliteIdRef.current && currentSatId !== lastSatelliteIdRef.current) {
-      // 換手發生
+    if (handoverMethod !== 'paper41' && currentSatId && lastSatelliteIdRef.current && currentSatId !== lastSatelliteIdRef.current) {
       statsRef.current.totalHandovers++;
-
-      // 🔋 累積能耗（每次換手消耗固定能量）
-      // 基於 Ntabeni et al. (2025): E_handover = 3 Joules
-      // 原始來源: Chen et al. (2019) [ref 37]
       statsRef.current.energyConsumption += ENERGY_CONFIG.ENERGY_PER_HANDOVER;
 
-      // 檢測 ping-pong（10秒內回到前一顆衛星）
       const timeSinceLastHandover = elapsedTimeRef.current - lastHandoverTimeRef.current;
       if (timeSinceLastHandover < 10) {
         statsRef.current.pingPongEvents++;
@@ -232,7 +303,6 @@ export function Satellites({
 
       lastHandoverTimeRef.current = elapsedTimeRef.current;
 
-      // 更新連接持續時間
       if (connectionStartTimeRef.current > 0) {
         const duration = elapsedTimeRef.current - connectionStartTimeRef.current;
         statsRef.current.connectionDuration =
@@ -329,7 +399,7 @@ export function Satellites({
         currentSatelliteElevation: currentSatInfo?.elevation,
         currentSatelliteDistance: currentSatInfo?.distance,
         // 只傳遞當前可見的候選衛星 ID，確保 UI 邊框數量與 3D 連線數量一致
-        candidateSatellites: newHandoverState.candidateSatelliteIds.filter(id => visibleSatellites.has(id)),
+        candidateSatellites: newHandoverState.candidateSatelliteIds.filter((id: string) => visibleSatellites.has(id)),
         // 目標衛星數據
         targetSatelliteRSRP: targetRSRP,
         targetSatelliteRSRQ: targetRSRQ,
@@ -490,18 +560,43 @@ export function Satellites({
       const visibleCells = getVisibleCells(satPosition, cells, 25);
       if (visibleCells.length === 0) return;
 
-      // 選擇要服務的 cells (最多 4 個)
-      const servingCellIds = selectServingCells(visibleCells, 4, satPosition);
+      // 選擇要服務的 cells
+      // 如果有 WMIS 分配（Paper 4-1 beam hopping v2），優先使用
+      let assignments: BeamAssignment[];
+      let ueCellId: number;
 
-      // 建立波束分配
-      const assignments: BeamAssignment[] = servingCellIds.map((cellId, index) => ({
-        beamId: index + 1,
-        cellId,
-        isActive: true,
-      }));
+      if (wmisAssignments && wmisAssignments.length > 0) {
+        // 使用 WMIS scheduler 的結果 (v2: filter by satId if available)
+        const visibleCellIds = new Set(visibleCells.map(c => c.id));
+        const hasSatIds = wmisAssignments.some(a => a.satId);
+        const validAssignments = wmisAssignments.filter(a => {
+          if (!visibleCellIds.has(a.cellId)) return false;
+          // With v2 graph: match satellite ID; with v1: use all for first satellite only
+          if (hasSatIds && a.satId) return a.satId === satId;
+          return satIndex === 0;
+        });
 
-      // 找出 UE 所在的 cell (簡化：選擇距離原點最近的 cell)
-      const ueCellId = servingCellIds[0];
+        if (validAssignments.length > 0) {
+          assignments = validAssignments.map(a => ({
+            beamId: a.beamId,
+            cellId: a.cellId,
+            isActive: true,
+          }));
+          ueCellId = validAssignments[0]?.cellId ?? visibleCells[0]?.id ?? 1;
+        } else {
+          // No WMIS assignments for this satellite — skip beam rendering
+          return;
+        }
+      } else {
+        // 預設：距離排序選擇
+        const servingCellIds = selectServingCells(visibleCells, 4, satPosition);
+        assignments = servingCellIds.map((cellId, index) => ({
+          beamId: index + 1,
+          cellId,
+          isActive: true,
+        }));
+        ueCellId = servingCellIds[0];
+      }
 
       result.push({
         satelliteId: satId,
@@ -513,7 +608,7 @@ export function Satellites({
     });
 
     return result;
-  }, [showBeams, cells, handoverState?.currentSatelliteId, handoverState?.targetSatelliteId, handoverState?.phase, visibleSatellitesState]);
+  }, [showBeams, cells, handoverState?.currentSatelliteId, handoverState?.targetSatelliteId, handoverState?.phase, visibleSatellitesState, wmisAssignments]);
 
   // 更新 cells 狀態（根據波束分配）
   useEffect(() => {

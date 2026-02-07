@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { Text, Line } from '@react-three/drei';
+import { Text, Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
+import type { CellQueueState } from '@/types/paper41';
 
 /**
  * 論文 4-1：雙極化配置顏色
@@ -141,16 +142,69 @@ function createHexagonBorderPoints(radius: number): [number, number, number][] {
 }
 
 /**
+ * Queue 長度進度條（HTML overlay）
+ */
+function QueueBar({ queueLength, maxQueue }: { queueLength: number; maxQueue: number }) {
+  const ratio = Math.min(queueLength / Math.max(maxQueue, 1), 1);
+  // 綠 → 黃 → 紅 漸變
+  const r = Math.round(ratio > 0.5 ? 255 : ratio * 2 * 255);
+  const g = Math.round(ratio < 0.5 ? 255 : (1 - (ratio - 0.5) * 2) * 255);
+  const color = `rgb(${r}, ${g}, 50)`;
+
+  return (
+    <div style={{
+      width: '50px',
+      pointerEvents: 'none',
+      userSelect: 'none',
+    }}>
+      {/* 數值標籤 */}
+      <div style={{
+        fontSize: '9px',
+        color: '#ffffff',
+        textAlign: 'center',
+        marginBottom: '1px',
+        textShadow: '0 0 3px #000',
+        fontFamily: 'monospace',
+        fontWeight: 600,
+      }}>
+        {queueLength < 10 ? queueLength.toFixed(1) : Math.round(queueLength)}
+      </div>
+      {/* 進度條背景 */}
+      <div style={{
+        width: '100%',
+        height: '4px',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: '2px',
+        overflow: 'hidden',
+      }}>
+        {/* 填充 */}
+        <div style={{
+          width: `${ratio * 100}%`,
+          height: '100%',
+          backgroundColor: color,
+          borderRadius: '2px',
+          transition: 'width 0.15s ease',
+        }} />
+      </div>
+    </div>
+  );
+}
+
+/**
  * 單個 Earth-Fixed Cell 組件
  */
 interface EarthFixedCellProps {
   cell: EarthFixedCell;
   showLabel?: boolean;
+  queueState?: CellQueueState;
+  maxQueueForScale?: number;
 }
 
 function EarthFixedCellComponent({
   cell,
   showLabel = true,
+  queueState,
+  maxQueueForScale = 100,
 }: EarthFixedCellProps) {
   // 六邊形幾何
   const hexGeometry = useMemo(() => createHexagonGeometry(cell.radius), [cell.radius]);
@@ -244,6 +298,16 @@ function EarthFixedCellComponent({
           {`×${cell.coveringSatelliteCount}`}
         </Text>
       )}
+
+      {/* Queue 長度進度條 (Paper 4-1: Data Queue 動態) */}
+      {queueState && queueState.queueLength > 0 && (
+        <Html position={[0, 14, 0]} center>
+          <QueueBar
+            queueLength={queueState.queueLength}
+            maxQueue={maxQueueForScale}
+          />
+        </Html>
+      )}
     </group>
   );
 }
@@ -334,12 +398,30 @@ export function generateEarthFixedCells(config: {
 interface EarthFixedCellsProps {
   cells: EarthFixedCell[];
   showLabels?: boolean;
+  queueStates?: CellQueueState[];
 }
 
 export function EarthFixedCells({
   cells,
   showLabels = true,
+  queueStates,
 }: EarthFixedCellsProps) {
+  // 計算 max queue 用於進度條的比例尺
+  const maxQueue = useMemo(() => {
+    if (!queueStates || queueStates.length === 0) return 100;
+    return Math.max(...queueStates.map(q => q.queueLength), 1);
+  }, [queueStates]);
+
+  // 建立 cellId → queueState 映射
+  const queueMap = useMemo(() => {
+    if (!queueStates) return new Map<number, CellQueueState>();
+    const map = new Map<number, CellQueueState>();
+    for (const q of queueStates) {
+      map.set(q.cellId, q);
+    }
+    return map;
+  }, [queueStates]);
+
   return (
     <group>
       {cells.map((cell) => (
@@ -347,6 +429,8 @@ export function EarthFixedCells({
           key={cell.id}
           cell={cell}
           showLabel={showLabels}
+          queueState={queueMap.get(cell.id)}
+          maxQueueForScale={maxQueue}
         />
       ))}
     </group>
@@ -363,3 +447,12 @@ export const DEFAULT_CELL_CONFIG = {
   centerX: 0,
   centerZ: 0,
 };
+
+/**
+ * Scene-to-km scale factor for physical layer calculations.
+ *
+ * Paper 4-1 Section V-A: inter-cell spacing = 34.6 km.
+ * Scene hex spacing = sqrt(3) × cellRadius = sqrt(3) × 80 ≈ 138.56 scene units.
+ * Scale = 34.6 / 138.56 ≈ 0.2497 km per scene unit.
+ */
+export const SCENE_TO_KM_SCALE = 34.6 / (Math.sqrt(3) * DEFAULT_CELL_CONFIG.cellRadius);

@@ -24,6 +24,9 @@ import {
   DEFAULT_CELL_CONFIG,
   EarthFixedCell,
 } from '@/features/beam-hopping/components/EarthFixedCells';
+import { useSimulationClock } from '@/hooks/useSimulationClock';
+import { useLyapunovOptimizer } from '@/hooks/useLyapunovOptimizer';
+import { Paper41Config, DEFAULT_PAPER41_CONFIG } from '@/types/paper41';
 
 // Loading indicator in 3D scene
 function Loader() {
@@ -61,10 +64,33 @@ export function MainScene() {
       setVisualizationToggles(prev => ({ ...prev, [key]: value }));
     }, []);
 
+    // Paper 4-1 configuration (mutable for parameter panel)
+    const [paper41Config, setPaper41Config] = useState<Paper41Config>(DEFAULT_PAPER41_CONFIG);
+    const [spectrumSharingEnabled, setSpectrumSharingEnabled] = useState(true);
+
     // Handle cells update from Satellites (beam assignments)
     const handleCellsUpdate = useCallback((updatedCells: EarthFixedCell[]) => {
       setCells(updatedCells);
     }, []);
+
+    // Paper 4-1 simulation clock (epoch/slot time system + data queue dynamics)
+    const {
+      clock,
+      queueStates,
+      avgQueueLength,
+      maxQueueLength,
+      togglePlay,
+      stepSlot,
+      stepEpoch,
+      setSpeed,
+      reset: resetClock,
+    } = useSimulationClock(cells, paper41Config);
+
+    // Paper 4-1 Lyapunov optimization (per-epoch decisions)
+    // Also provides v2 conflict graph WMIS beam decisions for 3D visualization
+    const { lyapunovState, currentBeamDecision, lastHandoverResult, epochPrimarySatPosition } = useLyapunovOptimizer(
+      cells, clock, queueStates, paper41Config, spectrumSharingEnabled,
+    );
     const [handoverStats, setHandoverStats] = useState<HandoverStats>({
       totalHandovers: 0,
       pingPongEvents: 0,
@@ -140,6 +166,20 @@ export function MainScene() {
           onCandidateCountChange={setCandidateCount}
           visualizationToggles={visualizationToggles}
           onToggleChange={handleToggleChange}
+          simulationClock={clock}
+          queueStates={queueStates}
+          avgQueueLength={avgQueueLength}
+          maxQueueLength={maxQueueLength}
+          onTogglePlay={togglePlay}
+          onStepSlot={stepSlot}
+          onStepEpoch={stepEpoch}
+          onSetSpeed={setSpeed}
+          onResetClock={resetClock}
+          lyapunovState={lyapunovState}
+          paper41Config={paper41Config}
+          onPaper41ConfigChange={setPaper41Config}
+          spectrumSharingEnabled={spectrumSharingEnabled}
+          onSpectrumSharingToggle={setSpectrumSharingEnabled}
         />
   
         {/* Right decision details panel */}
@@ -227,6 +267,7 @@ export function MainScene() {
             <EarthFixedCells
               cells={cells}
               showLabels={visualizationToggles.showCellLabels}
+              queueStates={queueStates}
             />
           )}
   
@@ -243,6 +284,9 @@ export function MainScene() {
               cells={cells}
               showBeamLabels={visualizationToggles.showBeamLabels}
               onCellsUpdate={handleCellsUpdate}
+              wmisAssignments={currentBeamDecision.assignments}
+              epochHandoverResult={handoverMethod === 'paper41' ? lastHandoverResult : undefined}
+              epochPrimarySatPosition={handoverMethod === 'paper41' ? epochPrimarySatPosition : undefined}
               key={`${constellation}-${handoverMethod}`} // Force reload when constellation or method changes
             />
           </Suspense>

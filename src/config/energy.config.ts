@@ -69,6 +69,13 @@ export const ENERGY_CONFIG = {
       handoversAt3000s: 750,
       label: 'DQN (Energy-Aware)',
     },
+
+    // Paper 4-1 方法 (Lyapunov + Conditional Triggering + Swap Matching)
+    paper41: {
+      energyAt3000s: 3.5,    // 條件觸發大幅減少不必要換手
+      handoversAt3000s: 400,
+      label: 'Paper 4-1 (Lyapunov)',
+    },
   },
 
   /**

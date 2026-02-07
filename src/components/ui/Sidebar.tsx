@@ -4,7 +4,12 @@ import { ConstellationType } from '../controls/ConstellationSelector';
 import { GlobalControls } from './sidebar/GlobalControls';
 import { EnergyEfficiencyPanel } from './sidebar/EnergyEfficiencyPanel';
 import { VisualizationTogglePanel } from './sidebar/VisualizationTogglePanel';
+import { SimulationClockPanel } from './sidebar/SimulationClockPanel';
+import { Paper41ParamsPanel } from './sidebar/Paper41ParamsPanel';
+import { SimulationChartsPanel } from './sidebar/SimulationChartsPanel';
+import { ConstraintValidationPanel } from './sidebar/ConstraintValidationPanel';
 import type { VisualizationToggles } from '@/types/unified-scene';
+import type { SimulationClock, CellQueueState, LyapunovState, Paper41Config } from '@/types/paper41';
 
 // Derive readable text colors based on background brightness
 function getContrastTextColor(hex: string) {
@@ -53,6 +58,24 @@ interface SidebarProps {
   // 視覺化開關
   visualizationToggles: VisualizationToggles;
   onToggleChange: (key: keyof VisualizationToggles, value: boolean) => void;
+
+  // Paper 4-1 模擬時鐘
+  simulationClock: SimulationClock;
+  queueStates: CellQueueState[];
+  avgQueueLength: number;
+  maxQueueLength: number;
+  onTogglePlay: () => void;
+  onStepSlot: () => void;
+  onStepEpoch: () => void;
+  onSetSpeed: (multiplier: number) => void;
+  onResetClock: () => void;
+  lyapunovState?: LyapunovState;
+
+  // Paper 4-1 參數面板
+  paper41Config?: Paper41Config;
+  onPaper41ConfigChange?: (config: Paper41Config) => void;
+  spectrumSharingEnabled?: boolean;
+  onSpectrumSharingToggle?: (enabled: boolean) => void;
 }
 
 export function Sidebar({
@@ -70,7 +93,21 @@ export function Sidebar({
   onAnimationSpeedChange,
   onCandidateCountChange,
   visualizationToggles,
-  onToggleChange
+  onToggleChange,
+  simulationClock,
+  queueStates,
+  avgQueueLength,
+  maxQueueLength,
+  onTogglePlay,
+  onStepSlot,
+  onStepEpoch,
+  onSetSpeed,
+  onResetClock,
+  lyapunovState,
+  paper41Config,
+  onPaper41ConfigChange,
+  spectrumSharingEnabled,
+  onSpectrumSharingToggle,
 }: SidebarProps) {
   const method = HANDOVER_METHODS[currentMethod];
   const [connectionBorderColor, setConnectionBorderColor] = useState('#0088ff');
@@ -106,7 +143,7 @@ export function Sidebar({
     oneweb: 'OneWeb'
   };
 
-  const methods: HandoverMethodType[] = ['rsrp', 'geometric', 'dqn'];
+  const methods: HandoverMethodType[] = ['rsrp', 'geometric', 'paper41', 'dqn'];
   const {
     text: cardTextColor,
     subtle: cardSubtleTextColor,
@@ -443,6 +480,55 @@ export function Sidebar({
             toggles={visualizationToggles}
             onToggleChange={onToggleChange}
           />
+
+          {/* 分隔線 */}
+          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+
+          {/* Paper 4-1 模擬時鐘 */}
+          <SimulationClockPanel
+            clock={simulationClock}
+            queueStates={queueStates}
+            avgQueueLength={avgQueueLength}
+            maxQueueLength={maxQueueLength}
+            onTogglePlay={onTogglePlay}
+            onStepSlot={onStepSlot}
+            onStepEpoch={onStepEpoch}
+            onSetSpeed={onSetSpeed}
+            onReset={onResetClock}
+            lyapunovState={lyapunovState}
+          />
+
+          {/* Paper 4-1 參數面板 */}
+          {paper41Config && onPaper41ConfigChange && (
+            <>
+              <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+              <Paper41ParamsPanel
+                config={paper41Config}
+                onConfigChange={onPaper41ConfigChange}
+                spectrumSharingEnabled={spectrumSharingEnabled ?? true}
+                onSpectrumSharingToggle={onSpectrumSharingToggle ?? (() => {})}
+              />
+            </>
+          )}
+
+          {/* Paper 4-1 模擬結果圖表 (Fig. 6-9) */}
+          {lyapunovState && lyapunovState.history.length > 0 && (
+            <>
+              <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+              <SimulationChartsPanel history={lyapunovState.history} />
+            </>
+          )}
+
+          {/* 約束驗證面板 */}
+          {lyapunovState && paper41Config && lyapunovState.history.length > 1 && (
+            <>
+              <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+              <ConstraintValidationPanel
+                lyapunovState={lyapunovState}
+                config={paper41Config}
+              />
+            </>
+          )}
 
           {/* 分隔線 */}
           <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
