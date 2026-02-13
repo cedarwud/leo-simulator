@@ -2,7 +2,7 @@
 
 ## 1. 目的
 
-將 Paper 4-1 的所有可調參數整合到側邊欄，並即時顯示論文中的關鍵指標。
+將 Lyapunov 的所有可調參數整合到側邊欄，並即時顯示論文中的關鍵指標。
 
 ## 2. 設計內容
 
@@ -53,8 +53,8 @@
 
 | 檔案 | 變更 |
 |---|---|
-| `src/components/ui/sidebar/Paper41ParamsPanel.tsx` | 新建：參數面板 |
-| `src/components/ui/sidebar/Paper41MetricsPanel.tsx` | 新建：指標面板 |
+| `src/components/ui/sidebar/LyapunovParamsPanel.tsx` | 新建：參數面板 |
+| `src/components/ui/sidebar/LyapunovMetricsPanel.tsx` | 新建：指標面板 |
 | `src/components/ui/Sidebar.tsx` | 修改：整合新面板 |
 
 ## 4. 前置需求

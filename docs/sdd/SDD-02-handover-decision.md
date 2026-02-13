@@ -2,7 +2,7 @@
 
 ## 1. 目的
 
-實作 Paper 4-1 的 inter-satellite handover 決策演算法，在 leo-simulator 中新增為一種 handover method。
+實作 Lyapunov 的 inter-satellite handover 決策演算法，在 leo-simulator 中新增為一種 handover method。
 
 ## 2. 論文對應
 
@@ -44,7 +44,7 @@
 在 `HandoverMethodType` 中新增：
 
 ```typescript
-type HandoverMethodType = 'geometric' | 'rsrp' | 'dqn' | 'paper41';
+type HandoverMethodType = 'geometric' | 'rsrp' | 'dqn' | 'lyapunov';
 ```
 
 ### 3.5 與 orbit-engine 整合
@@ -57,9 +57,9 @@ type HandoverMethodType = 'geometric' | 'rsrp' | 'dqn' | 'paper41';
 
 | 檔案 | 變更 | 專案 |
 |---|---|---|
-| `src/types/handover-method.ts` | 修改：新增 'paper41' 類型 | leo-simulator |
-| `src/utils/satellite/Paper41HandoverManager.ts` | 新建：Algorithm 1 實作 | leo-simulator |
-| `src/components/ui/sidebar/` | 修改：新增 Paper 4-1 方法面板 | leo-simulator |
+| `src/types/handover-method.ts` | 修改：新增 'lyapunov' 類型 | leo-simulator |
+| `src/utils/satellite/LyapunovHandoverManager.ts` | 新建：Algorithm 1 實作 | leo-simulator |
+| `src/components/ui/sidebar/` | 修改：新增 Lyapunov 方法面板 | leo-simulator |
 | `stage6_research_optimization/` | 修改：整合負載模擬 | orbit-engine |
 
 ## 5. 前置需求

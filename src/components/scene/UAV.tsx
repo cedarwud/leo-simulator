@@ -1,8 +1,9 @@
-import React, { useRef, useMemo } from 'react';
+import { useRef, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 // @ts-ignore - SkeletonUtils has no TypeScript definitions
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { NTPU_CONFIG } from '@/config/ntpu.config';
 
 interface UAVProps {
   position: [number, number, number];
@@ -11,7 +12,7 @@ interface UAVProps {
 
 export function UAV({ position, scale = 10 }: UAVProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const { scene } = useGLTF('/models/uav.glb');
+  const { scene } = useGLTF(NTPU_CONFIG.uav.modelPath);
 
   // Clone scene using useMemo (SkeletonUtils for skeletal animation)
   const clonedScene = useMemo(() => {
@@ -44,4 +45,4 @@ export function UAV({ position, scale = 10 }: UAVProps) {
 }
 
 // Preload model
-useGLTF.preload('/models/uav.glb');
+useGLTF.preload(NTPU_CONFIG.uav.modelPath);

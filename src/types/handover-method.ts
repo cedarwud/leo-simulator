@@ -4,7 +4,7 @@
  * 支援多種換手決策算法的學術研究對比
  */
 
-export type HandoverMethodType = 'geometric' | 'rsrp' | 'dqn' | 'paper41';
+export type HandoverMethodType = 'geometric' | 'rsrp' | 'dqn' | 'lyapunov';
 
 export interface HandoverMethodInfo {
   id: HandoverMethodType;
@@ -35,9 +35,9 @@ export const HANDOVER_METHODS: Record<HandoverMethodType, HandoverMethodInfo> = 
     academicReference: 'handover-rl DQN Agent',
     color: '#ff8800',
   },
-  paper41: {
-    id: 'paper41',
-    name: 'Paper 4-1 (Lyapunov)',
+  lyapunov: {
+    id: 'lyapunov',
+    name: 'Lyapunov',
     description: 'Conditional triggering + Swap matching with handover frequency control',
     academicReference: 'Zhu et al. 2025 - IEEE TCOMM',
     color: '#cc44ff',

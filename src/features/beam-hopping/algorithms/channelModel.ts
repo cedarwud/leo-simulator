@@ -1,5 +1,5 @@
 /**
- * Physical Layer Channel Model — Paper 4-1, Section II / V-A
+ * Physical Layer Channel Model — Lyapunov, Section II / V-A
  *
  * Implements Ka-band (20 GHz) satellite-to-ground channel model based on:
  * - 3GPP TR 38.811: Path loss (FSPL + shadow fading + clutter loss)

@@ -1,5 +1,5 @@
 /**
- * Satellite-Terrestrial Spectrum Sharing v2 — Paper 4-1, Algorithm 3
+ * Satellite-Terrestrial Spectrum Sharing v2 — Lyapunov, Algorithm 3
  *
  * Binary Sparrow Search Algorithm (BSSA) for dynamic spectrum sharing decisions.
  *
@@ -22,10 +22,10 @@ import {
   TerrestrialCluster,
   SpectrumSharingDecision,
   SpectrumSharingConfig,
-  Paper41Config,
+  LyapunovConfig,
   DEFAULT_SPECTRUM_SHARING_CONFIG,
-  DEFAULT_PAPER41_PHYSICAL_LAYER,
-} from '@/types/paper41';
+  DEFAULT_LYAPUNOV_PHYSICAL_LAYER,
+} from '@/types/lyapunov';
 import {
   computeSlantDistance,
   computeChannelGain,
@@ -122,7 +122,7 @@ function computeInterference(
   // Noise power at terrestrial receiver (dBm)
   // N = kTB: k=-228.6 dBW/K/Hz, T=290K → N₀=-174 dBm/Hz
   // Eq. 36: available shared bandwidth = W₂ - W_center
-  const wCenter = DEFAULT_PAPER41_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
+  const wCenter = DEFAULT_LYAPUNOV_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
   const availableBwHz = Math.max(cluster.bandwidthMhz - wCenter, 0) * 1e6;
   const noisePowerDbm = availableBwHz > 0
     ? -174 + 10 * Math.log10(availableBwHz)
@@ -159,7 +159,7 @@ function computeInterferenceAtOffset(
   const hDb = h > 0 ? 10 * Math.log10(h) : -200;
   const receivedPowerDbm = cfg.txPowerDbm + gTxOff + gRxTerrestrial + hDb;
 
-  const wCenter = DEFAULT_PAPER41_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
+  const wCenter = DEFAULT_LYAPUNOV_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
   const availableBwHz = Math.max(cluster.bandwidthMhz - wCenter, 0) * 1e6;
   const noisePowerDbm = availableBwHz > 0
     ? -174 + 10 * Math.log10(availableBwHz)
@@ -247,10 +247,10 @@ function checkConstraint16(
  */
 function computeCapacityGainPerSlot(
   cluster: TerrestrialCluster,
-  paperConfig: Paper41Config,
+  paperConfig: LyapunovConfig,
 ): number {
   const snrLinear = Math.pow(10, paperConfig.targetSnrDb / 10);
-  const wCenter = DEFAULT_PAPER41_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
+  const wCenter = DEFAULT_LYAPUNOV_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
   const sharedBw = cluster.bandwidthMhz - wCenter; // W₂ - W_center
   if (sharedBw <= 0) return 0;
   return sharedBw * (paperConfig.slotDurationMs / 1000) * Math.log2(1 + snrLinear);
@@ -270,7 +270,7 @@ function computeFitness(
   solution: number[],
   queueStates: CellQueueState[],
   clusters: TerrestrialCluster[],
-  paperConfig: Paper41Config,
+  paperConfig: LyapunovConfig,
   ssConfig: SpectrumSharingConfig,
   cellElevations?: Map<number, number>,
   physConfig?: PhysicalLayerConfig,
@@ -287,7 +287,7 @@ function computeFitness(
     const Qc = q?.queueLength ?? 0;
 
     // Shared capacity per slot for this cell (Eq. 36: W₂ - W_center)
-    const wCenter = DEFAULT_PAPER41_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
+    const wCenter = DEFAULT_LYAPUNOV_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
     const sharedBw = cluster ? Math.max(cluster.bandwidthMhz - wCenter, 0) : 0;
     const sharedCapPerSlot = sharedBw * (paperConfig.slotDurationMs / 1000) * Math.log2(1 + snrLinear);
 
@@ -355,7 +355,7 @@ function binarySSA(
   dim: number,
   queueStates: CellQueueState[],
   clusters: TerrestrialCluster[],
-  paperConfig: Paper41Config,
+  paperConfig: LyapunovConfig,
   ssConfig: SpectrumSharingConfig,
   bssaConfig: BSSAConfig = DEFAULT_BSSA_CONFIG,
   cellElevations?: Map<number, number>,
@@ -576,7 +576,7 @@ function binarySSA(
 export function decideSpectrumSharing(
   queueStates: CellQueueState[],
   clusters: TerrestrialCluster[],
-  paperConfig: Paper41Config,
+  paperConfig: LyapunovConfig,
   ssConfig: SpectrumSharingConfig = DEFAULT_SPECTRUM_SHARING_CONFIG,
   cellElevations?: Map<number, number>,
 ): SpectrumSharingDecision[] {

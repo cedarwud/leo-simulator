@@ -2,14 +2,14 @@
  * Lyapunov Optimizer Hook — Per-Epoch 決策循環
  *
  * 在每個 epoch 結束時執行完整的 Lyapunov 決策流程：
- * 1. Algorithm 1: 換手決策（由 Paper41HandoverManager 處理）
+ * 1. Algorithm 1: 換手決策（由 LyapunovHandoverManager 處理）
  * 2. Algorithm 2: Beam hopping（WMIS scheduler）
  * 3. 更新 virtual queues + drift-plus-penalty
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { EarthFixedCell, SCENE_TO_KM_SCALE } from '@/features/beam-hopping/components/EarthFixedCells';
-import { buildConflictGraph, SatelliteCellAssignment } from '@/features/beam-hopping/algorithms/conflictGraph';
+import { buildConflictGraph, SatelliteCellAssignment, type ConflictGraph } from '@/features/beam-hopping/algorithms/conflictGraph';
 import {
   initLyapunovState,
   runEpochDecision,
@@ -20,21 +20,22 @@ import {
   BaselineState,
 } from '@/features/beam-hopping/algorithms/baselineRunner';
 import { generateConstellation } from '@/features/beam-hopping/algorithms/constellation';
-import { computeCellCapacityMap, DEFAULT_PHYSICAL_LAYER_CONFIG } from '@/features/beam-hopping/algorithms/channelModel';
+import { computeCellCapacityMap, DEFAULT_PHYSICAL_LAYER_CONFIG, type PhysicalLayerConfig } from '@/features/beam-hopping/algorithms/channelModel';
 import {
   SimulationClock,
   CellQueueState,
   LyapunovState,
-  Paper41Config,
-  DEFAULT_PAPER41_CONFIG,
+  LyapunovConfig,
+  DEFAULT_LYAPUNOV_CONFIG,
   TerrestrialCluster,
   DEFAULT_SPECTRUM_SHARING_CONFIG,
-} from '@/types/paper41';
+} from '@/types/lyapunov';
 import { generateTerrestrialClusters } from '@/features/beam-hopping/algorithms/spectrumSharing';
 import {
-  Paper41HandoverManager,
-  Paper41HandoverResult,
-} from '@/utils/satellite/Paper41HandoverManager';
+  LyapunovHandoverManager,
+  LyapunovHandoverResult,
+  SatelliteInfo,
+} from '@/utils/satellite/LyapunovHandoverManager';
 
 /**
  * 管理 Lyapunov 優化框架的 per-epoch 決策循環
@@ -43,7 +44,7 @@ export function useLyapunovOptimizer(
   cells: EarthFixedCell[],
   clock: SimulationClock,
   queueStates: CellQueueState[],
-  config: Paper41Config = DEFAULT_PAPER41_CONFIG,
+  config: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
   spectrumSharingEnabled: boolean = true,
 ) {
   // Lyapunov 狀態
@@ -52,7 +53,7 @@ export function useLyapunovOptimizer(
   );
 
   // 最新 handover 結果（暴露給外部使用）
-  const [lastHandoverResult, setLastHandoverResult] = useState<Paper41HandoverResult | null>(null);
+  const [lastHandoverResult, setLastHandoverResult] = useState<LyapunovHandoverResult | null>(null);
 
   // 最新 beam decisions（暴露給 3D 視覺化使用）
   const [latestBeamDecisions, setLatestBeamDecisions] = useState<import('@/features/beam-hopping/algorithms/wmisScheduler').BeamHoppingDecision[]>([]);
@@ -60,12 +61,18 @@ export function useLyapunovOptimizer(
   // Primary satellite position from epoch assignments (for visual satellite matching)
   const [epochPrimarySatPosition, setEpochPrimarySatPosition] = useState<{ x: number; y: number; z: number } | null>(null);
 
+  // Current conflict graph (exposed for 3D visualization)
+  const [currentConflictGraph, setCurrentConflictGraph] = useState<ConflictGraph | null>(null);
+
+  // Current visible algorithmic satellites (exposed for 3D rendering)
+  const [currentVisibleSatellites, setCurrentVisibleSatellites] = useState<SatelliteInfo[]>([]);
+
   // 追蹤上次執行的 epoch
   const prevEpochRef = useRef(0);
 
-  // Paper41HandoverManager 實例（persist across epochs）
-  const handoverManagerRef = useRef<Paper41HandoverManager>(
-    new Paper41HandoverManager(config)
+  // LyapunovHandoverManager 實例（persist across epochs）
+  const handoverManagerRef = useRef<LyapunovHandoverManager>(
+    new LyapunovHandoverManager(config)
   );
 
   // Baseline state (persist across epochs for fair comparison)
@@ -75,12 +82,13 @@ export function useLyapunovOptimizer(
 
   // 當任何 config 欄位變更時重建 manager + baselines
   useEffect(() => {
-    handoverManagerRef.current = new Paper41HandoverManager(config);
+    handoverManagerRef.current = new LyapunovHandoverManager(config);
     baselineStateRef.current = initBaselineState(cells.map(c => c.id));
     prevEpochRef.current = 0;
   }, [config.lyapunovV, config.maxHandoverFrequency, config.resourceUtilizationThreshold,
       config.beamsPerSatellite, config.targetSnrDb, config.satelliteBandwidthMhz,
-      config.slotDurationMs, config.slotsPerEpoch, config.totalArrivalRateGbps]);
+      config.slotDurationMs, config.slotsPerEpoch, config.totalArrivalRateGbps,
+      config.rainRateMmPerH, config.enableShadowFading, config.enableAtmosphericEffects]);
 
   // Terrestrial clusters for spectrum sharing
   const terrestrialClusters = useMemo<TerrestrialCluster[]>(() => {
@@ -96,6 +104,14 @@ export function useLyapunovOptimizer(
     if (currentEpoch <= prevEpochRef.current) return;
     prevEpochRef.current = currentEpoch;
 
+    // Build physical layer config from user-adjustable settings
+    const physConfig: PhysicalLayerConfig = {
+      ...DEFAULT_PHYSICAL_LAYER_CONFIG,
+      rainRateMmPerH: config.rainRateMmPerH ?? 10,
+      enableShadowFading: config.enableShadowFading ?? true,
+      enableAtmosphericEffects: config.enableAtmosphericEffects ?? true,
+    };
+
     // Step 1: Generate LEO constellation (Section V-A: Walker-Delta 30/40/1)
     const epochDurationS = config.slotsPerEpoch * config.slotDurationMs / 1000;
     const satellites = generateConstellation(
@@ -108,7 +124,10 @@ export function useLyapunovOptimizer(
     // Fallback: if no satellites visible, skip this epoch
     if (satellites.length === 0) return;
 
-    // Step 2: Algorithm 1 — 使用 Paper41HandoverManager 做換手決策
+    // Expose algorithmic satellites for 3D rendering
+    setCurrentVisibleSatellites(satellites);
+
+    // Step 2: Algorithm 1 — 使用 LyapunovHandoverManager 做換手決策
     const tAlgo1Start = performance.now();
     const hoResult = handoverManagerRef.current.decide(
       cells, satellites, queueStates, lyapunovState.virtualQueues,
@@ -134,7 +153,7 @@ export function useLyapunovOptimizer(
     const cellCapacityMap = cellAssignments.length > 0
       ? computeCellCapacityMap(
           cellAssignments,
-          DEFAULT_PHYSICAL_LAYER_CONFIG,
+          physConfig,
           config.satelliteBandwidthMhz,
           config.beamsPerSatellite,
           config.slotDurationMs,
@@ -172,11 +191,12 @@ export function useLyapunovOptimizer(
     setEpochPrimarySatPosition(primaryAsgn?.satPosition ?? null);
 
     const conflictGraph = buildConflictGraph(cells, satAssignments, config.beamsPerSatellite, {
-      physical: DEFAULT_PHYSICAL_LAYER_CONFIG,
+      physical: physConfig,
       numVisibleSats: satellites.length,
       targetSnrDb: config.targetSnrDb,
       sceneToKmScale: SCENE_TO_KM_SCALE,
     });
+    setCurrentConflictGraph(conflictGraph);
 
     // 使用 queueStates 更新 Lyapunov state 的 data queues
     const stateWithCurrentQueues: LyapunovState = {
@@ -242,6 +262,10 @@ export function useLyapunovOptimizer(
     lastHandoverResult,
     /** Position of most-assigned satellite from epoch decision (for visual satellite matching) */
     epochPrimarySatPosition,
+    /** Current conflict graph (for 3D edge visualization) */
+    currentConflictGraph,
+    /** Current visible algorithmic satellites (for 3D rendering in Lyapunov mode) */
+    currentVisibleSatellites,
     /** Current slot's WMIS beam assignments (v2 conflict graph, with satId) */
     currentBeamDecision: currentSlotDecision,
     /** Virtual queue 平均值 */

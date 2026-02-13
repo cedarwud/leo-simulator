@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import type { LyapunovState, Paper41Config, BaselineMetrics } from '@/types/paper41';
+import { useMemo, useState, type CSSProperties } from 'react';
+import type { LyapunovState, LyapunovConfig, BaselineMetrics } from '@/types/lyapunov';
 
 interface ConstraintValidationPanelProps {
   lyapunovState: LyapunovState;
-  config: Paper41Config;
+  config: LyapunovConfig;
 }
 
 function StatusBadge({ pass, label }: { pass: boolean; label: string }) {
@@ -81,7 +81,7 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
-const cardStyle: React.CSSProperties = {
+const cardStyle: CSSProperties = {
   padding: '8px',
   backgroundColor: 'rgba(255, 255, 255, 0.04)',
   borderRadius: '6px',
@@ -91,10 +91,9 @@ const cardStyle: React.CSSProperties = {
 
 type GroupKey = 'beamHopping' | 'handover' | 'spectrumSharing';
 
-const GROUP_META: Record<GroupKey, { label: string; figNum: string; baselines: { key: string; label: string; color: string }[] }> = {
+const GROUP_META: Record<GroupKey, { label: string; baselines: { key: string; label: string; color: string }[] }> = {
   beamHopping: {
-    label: 'Beam Hopping',
-    figNum: 'Fig.6',
+    label: 'Beam Mgmt',
     baselines: [
       { key: 'proposed', label: 'Proposed', color: '#44bbff' },
       { key: 'greedyBH', label: 'Greedy', color: '#ff6666' },
@@ -104,7 +103,6 @@ const GROUP_META: Record<GroupKey, { label: string; figNum: string; baselines: {
   },
   handover: {
     label: 'Handover',
-    figNum: 'Fig.7',
     baselines: [
       { key: 'proposed', label: 'Proposed', color: '#44bbff' },
       { key: 'loadBalance', label: 'LoadBal', color: '#ff6666' },
@@ -113,8 +111,7 @@ const GROUP_META: Record<GroupKey, { label: string; figNum: string; baselines: {
     ],
   },
   spectrumSharing: {
-    label: 'Spectrum Sharing',
-    figNum: 'Fig.8',
+    label: 'Spectrum',
     baselines: [
       { key: 'proposed', label: 'Proposed', color: '#44bbff' },
       { key: 'greedySS', label: 'GreedySS', color: '#ff6666' },
@@ -309,7 +306,7 @@ export function ConstraintValidationPanel({
                     cursor: 'pointer',
                   }}
                 >
-                  {gm.figNum}
+                  {gm.label}
                 </button>
               );
             })}
@@ -317,7 +314,7 @@ export function ConstraintValidationPanel({
 
           {/* Statistical summary table for selected group */}
           <div style={cardStyle}>
-            <SectionHeader title={`${meta.figNum}: ${meta.label} (mean +/- std)`} />
+            <SectionHeader title={`${meta.label} (mean \u00B1 std)`} />
             <div style={{ overflowX: 'auto' }}>
               <table style={{
                 width: '100%',

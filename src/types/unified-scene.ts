@@ -18,6 +18,8 @@ export interface VisualizationToggles {
   showCellLabels: boolean;
   /** 顯示 Beam 標籤 (B1, B2...) */
   showBeamLabels: boolean;
+  /** 顯示衝突圖邊（Lyapunov 模式） */
+  showConflictEdges: boolean;
 }
 
 /**
@@ -28,6 +30,7 @@ export const DEFAULT_VISUALIZATION_TOGGLES: VisualizationToggles = {
   showBeams: true,
   showCellLabels: true,
   showBeamLabels: true,
+  showConflictEdges: false,
 };
 
 /**

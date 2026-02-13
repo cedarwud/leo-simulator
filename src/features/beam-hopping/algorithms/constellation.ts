@@ -10,7 +10,7 @@
  */
 
 import * as THREE from 'three';
-import type { SatelliteInfo } from '@/utils/satellite/Paper41HandoverManager';
+import type { SatelliteInfo } from '@/utils/satellite/LyapunovHandoverManager';
 
 // Physical constants
 const Re = 6371;            // Earth radius (km)

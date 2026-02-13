@@ -1,4 +1,3 @@
-import React from 'react';
 import { ParameterSlider } from './ParameterSlider';
 
 interface GlobalControlsProps {

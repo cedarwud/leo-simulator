@@ -1,8 +1,7 @@
 /**
- * Paper 4-1 Handover Manager — Algorithm 1
+ * Lyapunov Handover Manager — Algorithm 1
  *
- * "Inter-Satellite Handover Decision Algorithm"
- * Zhu, Sun, Peng — IEEE TCOMM 2025
+ * Inter-Satellite Handover Decision Algorithm
  *
  * 核心機制：
  * 1. 條件觸發 (Conditional Triggering) — 只在必要時才進行換手
@@ -17,7 +16,7 @@
 
 import * as THREE from 'three';
 import type { HandoverState } from '@/types/handover';
-import type { CellQueueState, Paper41Config, VirtualQueue } from '@/types/paper41';
+import type { CellQueueState, LyapunovConfig, VirtualQueue } from '@/types/lyapunov';
 import type { EarthFixedCell } from '@/features/beam-hopping/components/EarthFixedCells';
 
 /** 衛星資訊 (用於 handover 決策) */
@@ -41,7 +40,7 @@ export interface CellSatelliteAssignment {
 }
 
 /** Handover 決策結果 */
-export interface Paper41HandoverResult {
+export interface LyapunovHandoverResult {
   /** 所有 cell 的分配 */
   assignments: CellSatelliteAssignment[];
   /** 本 epoch 的換手次數 */
@@ -99,10 +98,10 @@ function computeEntropyWeights(attributes: number[][]): number[] {
 }
 
 /**
- * Paper 4-1 Handover Manager
+ * Lyapunov Handover Manager (duplicate comment — see file header)
  */
-export class Paper41HandoverManager {
-  private config: Paper41Config;
+export class LyapunovHandoverManager {
+  private config: LyapunovConfig;
   /** 上一 epoch 的分配結果 */
   private previousAssignments: Map<number, string> = new Map();
   /** 累計換手次數 */
@@ -112,7 +111,7 @@ export class Paper41HandoverManager {
   /** 最小仰角門檻 (度) */
   private readonly minElevation: number = 35;
 
-  constructor(config: Paper41Config) {
+  constructor(config: LyapunovConfig) {
     this.config = config;
   }
 
@@ -130,7 +129,7 @@ export class Paper41HandoverManager {
     satellites: SatelliteInfo[],
     queueStates: CellQueueState[],
     virtualQueues?: VirtualQueue[],
-  ): Paper41HandoverResult {
+  ): LyapunovHandoverResult {
     this.totalEpochs++;
 
     if (satellites.length === 0 || cells.length === 0) {
@@ -612,11 +611,11 @@ export class Paper41HandoverManager {
   }
 
   /**
-   * @deprecated Paper 4-1 模式已改用 epoch-driven 衛星選擇（Satellites.tsx:235），
-   * 此方法不再被 paper41 分支呼叫。保留僅為 manager API 介面相容。
+   * @deprecated Lyapunov 模式已改用 epoch-driven 衛星選擇（Satellites.tsx:235），
+   * 此方法不再被 lyapunov 分支呼叫。保留僅為 manager API 介面相容。
    *
    * Frame-based update (兼容現有 useFrame 迴圈)
-   * Paper 4-1 的換手是 epoch-based，不需要 frame-level 動畫。
+   * Lyapunov 的換手是 epoch-based，不需要 frame-level 動畫。
    * 此方法提供簡化的 HandoverState 以與現有 Satellites 架構相容。
    */
   update(

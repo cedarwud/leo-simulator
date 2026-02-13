@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 
 interface ParameterSliderProps {
   label: string;
@@ -28,7 +28,7 @@ export function ParameterSlider({
   const [showTooltip, setShowTooltip] = useState(false);
   const percentage = ((value - min) / (max - min)) * 100;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     onChange(parseFloat(e.target.value));
   };
 

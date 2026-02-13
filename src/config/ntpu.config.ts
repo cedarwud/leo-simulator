@@ -1,5 +1,3 @@
-import { Vector3 } from 'three';
-
 export const NTPU_CONFIG = {
   observer: {
     name: 'National Taipei University',
@@ -7,15 +5,18 @@ export const NTPU_CONFIG = {
     longitude: 121.3713889,  // degrees
     altitude: 50,            // meters
   },
+  uav: {
+    modelPath: '/models/uav.glb',
+  },
   scene: {
     modelPath: '/scenes/NTPU.glb',
-    position: new Vector3(0, 0, 0),
+    position: [0, 0, 0] as [number, number, number],
     scale: 1,
     rotation: [0, 0, 0] as [number, number, number],
   },
   camera: {
-    initialPosition: new Vector3(0, 800, 1200), // 將攝影機拉近並抬高視角，縮短 Z 軸距離並提高 Y
-    target: new Vector3(0, 200, 0), // 將視角中心上移，讓畫面整體下移
+    initialPosition: [0, 800, 1200] as [number, number, number],
+    target: [0, 200, 0] as [number, number, number],
     fov: 60,
     near: 0.1,
     far: 10000,

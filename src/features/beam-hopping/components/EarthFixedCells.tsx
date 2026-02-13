@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Text, Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import type { CellQueueState } from '@/types/paper41';
+import type { CellQueueState } from '@/types/lyapunov';
 
 /**
  * 論文 4-1：雙極化配置顏色
@@ -68,7 +68,7 @@ export interface EarthFixedCell {
   servingBeamColor: string | null;
   /** 能覆蓋此 cell 的衛星數量（用於顯示重疊區域）*/
   coveringSatelliteCount?: number;
-  /** 是否受到鄰近波束的干擾 (Paper 4-1: inter-beam interference) */
+  /** 是否受到鄰近波束的干擾 (Lyapunov: inter-beam interference) */
   isInterfered: boolean;
   /** 干擾來源列表（可能被多個 beam 同時干擾） */
   interferingSources: Array<{
@@ -217,12 +217,12 @@ function EarthFixedCellComponent({
   const baseColor = cell.isServed && cell.servingPolarization
     ? POLARIZATION_COLORS[cell.servingPolarization]
     : cell.isInterfered
-      ? '#ff2222'     // 受干擾：鮮紅色
+      ? '#dd4444'     // 受干擾：中等紅色
       : '#aaaaaa';    // 未受影響：淺灰色
 
-  const fillOpacity = cell.isServed ? 0.5 : cell.isInterfered ? 0.7 : 0.25;
-  const borderOpacity = cell.isServed ? 1.0 : cell.isInterfered ? 1.0 : 0.7;
-  const borderWidth = cell.isServed ? 4 : cell.isInterfered ? 4 : 2.5;
+  const fillOpacity = cell.isServed ? 0.5 : cell.isInterfered ? 0.4 : 0.25;
+  const borderOpacity = cell.isServed ? 1.0 : cell.isInterfered ? 0.7 : 0.7;
+  const borderWidth = cell.isServed ? 4 : cell.isInterfered ? 3 : 2.5;
   
   return (
     <group position={[cell.position.x, 3, cell.position.z]}>
@@ -299,7 +299,7 @@ function EarthFixedCellComponent({
         </Text>
       )}
 
-      {/* Queue 長度進度條 (Paper 4-1: Data Queue 動態) */}
+      {/* Queue 長度進度條 (Lyapunov: Data Queue 動態) */}
       {queueState && queueState.queueLength > 0 && (
         <Html position={[0, 14, 0]} center>
           <QueueBar
@@ -451,7 +451,7 @@ export const DEFAULT_CELL_CONFIG = {
 /**
  * Scene-to-km scale factor for physical layer calculations.
  *
- * Paper 4-1 Section V-A: inter-cell spacing = 34.6 km.
+ * Lyapunov Section V-A: inter-cell spacing = 34.6 km.
  * Scene hex spacing = sqrt(3) × cellRadius = sqrt(3) × 80 ≈ 138.56 scene units.
  * Scale = 34.6 / 138.56 ≈ 0.2497 km per scene unit.
  */

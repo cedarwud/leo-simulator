@@ -173,7 +173,7 @@ Update `SimulationChartsPanel` and `ConstraintValidationPanel` to support the 3-
 | `src/hooks/useLyapunovOptimizer.ts` | Use constellation generator instead of synthetic satellites |
 | `src/components/ui/sidebar/SimulationChartsPanel.tsx` | Support 3 baseline groups |
 | `src/components/ui/sidebar/ConstraintValidationPanel.tsx` | Support 3 baseline groups |
-| `src/types/paper41.ts` | Update EpochSnapshot baselines type |
+| `src/types/lyapunov.ts` | Update EpochSnapshot baselines type |
 
 ## 6. Phased Approach
 

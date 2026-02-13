@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { SatelliteOrbitCalculator } from '@/utils/satellite/SatelliteOrbitCalculator';
 import { EnhancedHandoverManager } from '@/utils/satellite/EnhancedHandoverManager';
 import { RSRPHandoverManager, RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
-import { Paper41HandoverManager, Paper41HandoverResult } from '@/utils/satellite/Paper41HandoverManager';
-import { DEFAULT_PAPER41_CONFIG } from '@/types/paper41';
+import { LyapunovHandoverManager, LyapunovHandoverResult, SatelliteInfo } from '@/utils/satellite/LyapunovHandoverManager';
+import { DEFAULT_LYAPUNOV_CONFIG } from '@/types/lyapunov';
 import { EnhancedSatelliteLinks } from './EnhancedSatelliteLinks';
 import { SatelliteLabel } from './SatelliteLabel';
 import { HandoverState } from '@/types/handover';
@@ -42,12 +42,14 @@ interface SatellitesProps {
   showBeamLabels?: boolean;
   /** Cells 更新回調（波束分配變更時） */
   onCellsUpdate?: (cells: EarthFixedCell[]) => void;
-  /** WMIS beam hopping assignments (Paper 4-1 Algorithm 2, v2 with satId) */
+  /** WMIS beam hopping assignments (Lyapunov Algorithm 2, v2 with satId) */
   wmisAssignments?: Array<{ cellId: number; beamId: number; polarization: 'A' | 'B'; satId?: string }>;
-  /** Epoch-based handover result from Algorithm 1 (Paper 4-1) */
-  epochHandoverResult?: Paper41HandoverResult | null;
+  /** Epoch-based handover result from Algorithm 1 (Lyapunov) */
+  epochHandoverResult?: LyapunovHandoverResult | null;
   /** Position of most-assigned satellite from epoch decision (algorithmic coordinates) */
   epochPrimarySatPosition?: { x: number; y: number; z: number } | null;
+  /** Algorithmic satellites from Lyapunov constellation (replaces JSON in Lyapunov mode) */
+  algorithmicSatellites?: SatelliteInfo[];
 }
 
 // 根據換手方法生成初始統計值（模擬已運行一段時間）
@@ -82,8 +84,8 @@ const generateInitialStats = (method: HandoverMethodType): HandoverStats => {
       pingPongRate = 0.05; // 5% ping-pong 率
       break;
 
-    case 'paper41':
-      // Paper 4-1：條件觸發，大幅減少換手，約每 100 秒
+    case 'lyapunov':
+      // Lyapunov：條件觸發，大幅減少換手，約每 100 秒
       avgConnectionDuration = 100;
       totalHandovers = Math.floor(initialElapsedTime / avgConnectionDuration);
       pingPongRate = 0.02; // 2% ping-pong 率（swap matching 優化）
@@ -133,6 +135,7 @@ export function Satellites({
   wmisAssignments,
   epochHandoverResult,
   epochPrimarySatPosition,
+  algorithmicSatellites,
 }: SatellitesProps) {
   const [calculator] = useState(() => new SatelliteOrbitCalculator());
   const [isLoaded, setIsLoaded] = useState(false);
@@ -153,7 +156,7 @@ export function Satellites({
   const connectionStartTimeRef = useRef<number>(0);
   const lastHandoverTimeRef = useRef<number>(0);
   // Track last-seen epoch handover result to detect new epochs (avoid double-counting)
-  const lastEpochResultRef = useRef<Paper41HandoverResult | null>(null);
+  const lastEpochResultRef = useRef<LyapunovHandoverResult | null>(null);
   // Epoch handover animation timer (frames remaining in 'switching' phase)
   const epochHandoverAnimRef = useRef<number>(0);
 
@@ -162,8 +165,8 @@ export function Satellites({
     switch (handoverMethod) {
       case 'rsrp':
         return new RSRPHandoverManager();
-      case 'paper41':
-        return new Paper41HandoverManager(DEFAULT_PAPER41_CONFIG);
+      case 'lyapunov':
+        return new LyapunovHandoverManager(DEFAULT_LYAPUNOV_CONFIG);
       case 'geometric':
       default:
         return new EnhancedHandoverManager();
@@ -220,24 +223,44 @@ export function Satellites({
 
   // 每幀更新衛星位置
   useFrame((state, delta) => {
-    if (!isLoaded) return;
+    if (!isLoaded && !useAlgorithmicSatellites) return;
 
     elapsedTimeRef.current += delta * timeSpeed;
-    const visibleSatellites = calculator.getVisibleSatellites(
-      elapsedTimeRef.current,
-      timeSpeed
-    );
+
+    // Build visibleSatellites map: in Lyapunov mode use algorithmic data, else use JSON
+    let visibleSatellites: Map<string, THREE.Vector3>;
+    if (useAlgorithmicSatellites) {
+      visibleSatellites = new Map<string, THREE.Vector3>();
+      for (const sat of algorithmicSatellites!) {
+        visibleSatellites.set(sat.id, sat.position);
+      }
+    } else {
+      visibleSatellites = calculator.getVisibleSatellites(
+        elapsedTimeRef.current,
+        1  // speed already applied via elapsedTimeRef accumulation
+      );
+    }
 
     // 更新換手狀態
     let newHandoverState: HandoverState;
     setVisibleSatellitesState(visibleSatellites);
 
-    if (handoverMethod === 'paper41') {
+    if (handoverMethod === 'lyapunov') {
       // ─── Epoch-driven handover (no frame-based proxy) ───
-      // Satellite selection: match epoch's primary satellite by closest 3D position
+      // In algorithmic mode: use epoch's primary satellite ID directly
+      // In JSON mode: match by closest 3D position (legacy fallback)
       let bestSatId: string | null = null;
-      if (epochPrimarySatPosition && visibleSatellites.size > 0) {
-        // Find visual satellite closest to the algorithmic primary satellite's position
+      if (useAlgorithmicSatellites && epochPrimarySatPosition) {
+        // Direct: find most-assigned satellite from epoch result
+        let bestDist = Infinity;
+        const ep = epochPrimarySatPosition;
+        for (const sat of algorithmicSatellites!) {
+          const dx = sat.position.x - ep.x, dy = sat.position.y - ep.y, dz = sat.position.z - ep.z;
+          const d = dx * dx + dy * dy + dz * dz;
+          if (d < bestDist) { bestDist = d; bestSatId = sat.id; }
+        }
+      } else if (epochPrimarySatPosition && visibleSatellites.size > 0) {
+        // Legacy: match JSON satellite by closest position
         let bestDist = Infinity;
         const ep = epochPrimarySatPosition;
         for (const [satId, pos] of visibleSatellites) {
@@ -290,9 +313,9 @@ export function Satellites({
     // 更新統計數據
     statsRef.current.elapsedTime = elapsedTimeRef.current;
 
-    // 檢測換手事件 (non-paper41 methods only — paper41 uses epoch counts above)
+    // 檢測換手事件 (non-lyapunov methods only — lyapunov uses epoch counts above)
     const currentSatId = newHandoverState.currentSatelliteId;
-    if (handoverMethod !== 'paper41' && currentSatId && lastSatelliteIdRef.current && currentSatId !== lastSatelliteIdRef.current) {
+    if (handoverMethod !== 'lyapunov' && currentSatId && lastSatelliteIdRef.current && currentSatId !== lastSatelliteIdRef.current) {
       statsRef.current.totalHandovers++;
       statsRef.current.energyConsumption += ENERGY_CONFIG.ENERGY_PER_HANDOVER;
 
@@ -434,81 +457,59 @@ export function Satellites({
     // }
 
     // 更新所有衛星的可見性、位置和高亮效果
-    meshesRef.current.forEach((mesh, satelliteId) => {
-      const position = visibleSatellites.get(satelliteId);
-      const isCurrentSatellite = satelliteId === newHandoverState.currentSatelliteId;
-      const isTargetSatellite = satelliteId === newHandoverState.targetSatelliteId;
+    {
+      meshesRef.current.forEach((mesh, satelliteId) => {
+        const position = visibleSatellites.get(satelliteId);
+        const isCurrentSatellite = satelliteId === newHandoverState.currentSatelliteId;
+        const isTargetSatellite = satelliteId === newHandoverState.targetSatelliteId;
 
-      // Update Label Position & Visibility
-      const labelGroup = labelsRef.current.get(satelliteId);
+        const labelGroup = labelsRef.current.get(satelliteId);
 
-      if (position) {
-        // 衛星可見：更新位置並顯示
-        mesh.position.set(position.x, position.y, position.z);
-        mesh.visible = true;
+        if (position) {
+          mesh.position.set(position.x, position.y, position.z);
+          mesh.visible = true;
 
-        // Update Label
-        if (labelGroup) {
-          labelGroup.visible = true;
-          // Ensure label is above the model (offset logic handles scale)
-          // But wait, the labelGroup is unscaled in the scene root? No, it's in the group.
-          // Actually, SatelliteLabel uses Billboard at `position`.
-          // Since we moved to imperative updates, we need to set the position on the group.
-          // Note: The SatelliteLabel component logic sets position on mount/prop change.
-          // We need to override it or ensure the Ref points to the group we can move.
-          // SatelliteLabel renders a Billboard. The ref we get is the Billboard (Group).
-          // We can set its position directly.
-          
-          // Re-apply offset logic here for imperative update
-          // OneWeb scale 60 -> offset 150
-          // Starlink scale 6 -> offset 40
-          // Wait, isOneWeb is available in scope.
-          // Check if we need to apply the offset manually or if Billboard handles it?
-          // The previous SatelliteLabel implementation calculated `labelPosition` based on prop `position`.
-          // But now we removed the `position` prop and use imperative updates.
-          // So we MUST calculate the final position here.
-          
-          const offset = isOneWeb ? 65 : 40;
-          labelGroup.position.set(position.x, position.y + offset, position.z);
-        }
-
-        // 設置透明度和縮放（當前衛星高亮）
-        mesh.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            const childMesh = child as THREE.Mesh;
-            if (childMesh.material) {
-              const materials = Array.isArray(childMesh.material) ? childMesh.material : [childMesh.material];
-              materials.forEach((mat) => {
-                mat.transparent = true;
-                mat.opacity = 1.0; // 可見衛星完全不透明
-              });
-            }
+          if (labelGroup) {
+            labelGroup.visible = true;
+            const offset = isOneWeb ? 65 : 40;
+            labelGroup.position.set(position.x, position.y + offset, position.z);
           }
-        });
 
-        // 當前衛星輕微放大
-        const baseScale = isOneWeb ? 60 : 6;
-        if (isCurrentSatellite) {
-          mesh.scale.setScalar(baseScale * 1.15); // 放大 15%
-        } else if (isTargetSatellite) {
-          mesh.scale.setScalar(baseScale * 1.08); // 放大 8%
+          mesh.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              const childMesh = child as THREE.Mesh;
+              if (childMesh.material) {
+                const materials = Array.isArray(childMesh.material) ? childMesh.material : [childMesh.material];
+                materials.forEach((mat) => {
+                  mat.transparent = true;
+                  mat.opacity = 1.0;
+                });
+              }
+            }
+          });
+
+          const baseScale = isOneWeb ? 60 : 6;
+          if (isCurrentSatellite) {
+            mesh.scale.setScalar(baseScale * 1.15);
+          } else if (isTargetSatellite) {
+            mesh.scale.setScalar(baseScale * 1.08);
+          } else {
+            mesh.scale.setScalar(baseScale);
+          }
         } else {
-          mesh.scale.setScalar(baseScale);
+          mesh.visible = false;
+          if (labelGroup) {
+            labelGroup.visible = false;
+          }
         }
-      } else {
-        // 衛星不可見：完全隱藏
-        mesh.visible = false;
-        if (labelGroup) {
-          labelGroup.visible = false;
-        }
-      }
-    });
+      });
+    }
   });
 
   // 儲存衛星網格
   const meshesRef = useRef<Map<string, THREE.Group>>(new Map());
 
-  // 預先創建衛星模型實例
+  // 預先創建衛星模型實例 (JSON-based, for non-Lyapunov methods)
   const satelliteModels = useMemo(() => {
     if (!isLoaded) return [];
 
@@ -518,6 +519,15 @@ export function Satellites({
       model: scene.clone(true),
     }));
   }, [isLoaded, calculator, scene]);
+
+  // Refs kept for compatibility (algorithmic mode disabled, always uses JSON)
+  const algoMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
+  const algoSatMapRef = useRef<Map<string, number>>(new Map());
+  const algoLabelsRef = useRef<Map<string, THREE.Group>>(new Map());
+
+  // Always use JSON time-series for smooth visual satellite animation.
+  // Algorithmic data (beam scheduling, handover) feeds sidebar metrics only.
+  const useAlgorithmicSatellites = false;
 
   // Satellite Labels - Render ALL and update imperatively (Defined before early returns)
   const satelliteLabels = useMemo(() => satelliteModels.map(({ id }) => (
@@ -561,7 +571,7 @@ export function Satellites({
       if (visibleCells.length === 0) return;
 
       // 選擇要服務的 cells
-      // 如果有 WMIS 分配（Paper 4-1 beam hopping v2），優先使用
+      // 如果有 WMIS 分配（Lyapunov beam hopping v2），優先使用
       let assignments: BeamAssignment[];
       let ueCellId: number;
 
@@ -628,7 +638,7 @@ export function Satellites({
       });
     });
 
-    // 計算被干擾的 cells（Paper 4-1: inter-beam interference）
+    // 計算被干擾的 cells（Lyapunov: inter-beam interference）
     // 被服務 cell 的相鄰 cells 會受到波束溢出干擾
     const interferenceMap = new Map<number, Array<{ satelliteId: string; beamId: number; polarization: 'A' | 'B' }>>();
     beamAssignmentMap.forEach(({ beamId, satelliteId }, servedCellId) => {
@@ -693,13 +703,13 @@ export function Satellites({
     return null;
   }
 
-  if (!isLoaded) {
+  if (!isLoaded && !useAlgorithmicSatellites) {
     return null;
   }
 
   return (
     <group>
-      {/* 衛星模型 */}
+      {/* JSON-based 衛星模型 (non-Lyapunov or fallback) */}
       {satelliteModels.map(({ id, model }) => (
         <group
           key={id}
@@ -714,6 +724,7 @@ export function Satellites({
         </group>
       ))}
 
+
       {/* UAV 到衛星的連線 */}
       {handoverState && (
         <EnhancedSatelliteLinks
@@ -723,8 +734,8 @@ export function Satellites({
         />
       )}
 
-      {/* Satellite Labels */}
-      {satelliteLabels}
+      {/* JSON Satellite Labels (non-Lyapunov) */}
+      {!useAlgorithmicSatellites && satelliteLabels}
 
       {/* 衛星波束 (當 showBeams 啟用時，支援多顆衛星) */}
       {showBeams && beamDataList.map(beamData => (

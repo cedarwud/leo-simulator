@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Line, Cone, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { EarthFixedCell, POLARIZATION_COLORS, getBeamPolarization, getBeamColor } from './EarthFixedCells';
@@ -208,7 +208,7 @@ export function getVisibleCells(
 /**
  * 簡單的 Beam Hopping 調度：選擇要服務的 Cells
  * 
- * 根據 Paper 4-1 的 FRF3 Conflict Graph：
+ * 根據 Lyapunov 的 FRF3 Conflict Graph：
  * - 同頻率組的「相鄰」cells 不能同時服務（會干擾）
  * - 同頻率組但空間距離足夠的 cells 可以同時服務
  * 

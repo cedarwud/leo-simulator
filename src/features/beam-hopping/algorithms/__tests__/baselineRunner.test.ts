@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { initBaselineState, runBaselineEpoch } from '../baselineRunner';
-import { DEFAULT_PAPER41_CONFIG } from '@/types/paper41';
-import type { TerrestrialCluster } from '@/types/paper41';
+import { DEFAULT_LYAPUNOV_CONFIG } from '@/types/lyapunov';
+import type { TerrestrialCluster } from '@/types/lyapunov';
 import type { EarthFixedCell } from '@/features/beam-hopping/components/EarthFixedCells';
-import type { SatelliteInfo } from '@/utils/satellite/Paper41HandoverManager';
+import type { SatelliteInfo } from '@/utils/satellite/LyapunovHandoverManager';
 
 function mockCell(id: number, x: number, z: number): EarthFixedCell {
   return {
@@ -48,7 +48,7 @@ function mockClusters(cells: EarthFixedCell[]): TerrestrialCluster[] {
 }
 
 describe('baselineRunner (3-group)', () => {
-  const config = DEFAULT_PAPER41_CONFIG;
+  const config = DEFAULT_LYAPUNOV_CONFIG;
   const cells = Array.from({ length: 6 }, (_, i) => mockCell(i + 1, i * 50, 0));
   const cellIds = cells.map(c => c.id);
   const satellites = [

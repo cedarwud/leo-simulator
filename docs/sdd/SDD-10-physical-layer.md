@@ -127,7 +127,7 @@ src/features/beam-hopping/algorithms/channelModel.ts
 **Exported functions:**
 
 ```typescript
-/** Physical layer parameters for Paper 4-1 */
+/** Physical layer parameters for Lyapunov */
 export interface PhysicalLayerConfig {
   frequencyGhz: number;       // 20 GHz
   orbitalAltitudeKm: number;  // 550 km
@@ -281,7 +281,7 @@ This means the key improvement from SDD-10 is NOT changing capacity calculation,
 |------|--------|
 | `src/features/beam-hopping/algorithms/channelModel.ts` | **NEW**: Complete physical layer module |
 | `src/features/beam-hopping/algorithms/index.ts` | Export new module |
-| `src/types/paper41.ts` | Add `PhysicalLayerConfig`, update `Paper41Config` |
+| `src/types/lyapunov.ts` | Add `PhysicalLayerConfig`, update `LyapunovConfig` |
 | `src/features/beam-hopping/algorithms/__tests__/channelModel.test.ts` | **NEW**: Unit tests |
 
 ## 6. Deferred Integration

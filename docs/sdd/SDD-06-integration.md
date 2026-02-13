@@ -2,7 +2,7 @@
 
 ## 1. 目的
 
-整合 leo-simulator、orbit-engine、handover-rl 三個專案，用真實軌道數據執行完整的 Paper 4-1 模擬，並與 RL baseline 對比。
+整合 leo-simulator、orbit-engine、handover-rl 三個專案，用真實軌道數據執行完整的 Lyapunov 模擬，並與 RL baseline 對比。
 
 ## 2. 設計內容
 
@@ -24,7 +24,7 @@
 
 | 方法 | 來源 | 決策方式 |
 |---|---|---|
-| Paper 4-1 | 本專案 | Lyapunov + 條件觸發 + swap matching |
+| Lyapunov | 本專案 | Lyapunov + 條件觸發 + swap matching |
 | DQN | handover-rl | 深度 Q 學習 |
 | Max RSRP | handover-rl baselines | 選最強信號 |
 | Max Elevation | handover-rl baselines | 選最高仰角 |
@@ -66,6 +66,6 @@
 
 - [ ] 1200 顆衛星數據正確載入
 - [ ] 20000 epochs 模擬完成無崩潰
-- [ ] Paper 4-1 結果與論文 Fig. 6-9 趨勢一致
+- [ ] Lyapunov 結果與論文 Fig. 6-9 趨勢一致
 - [ ] DQN baseline 可正常運行並對比
 - [ ] 結果可匯出為報告格式

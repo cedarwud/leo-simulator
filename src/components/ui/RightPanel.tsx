@@ -1,9 +1,10 @@
-import React from 'react';
 import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { GeometricMethodPanel, GeometricConfig } from './sidebar/GeometricMethodPanel';
 import { RSRPMethodPanel } from './sidebar/RSRPMethodPanel';
+import { SimulationChartsPanel } from './sidebar/SimulationChartsPanel';
 import { RSRPHandoverConfig } from '@/utils/satellite/RSRPHandoverManager';
+import type { LyapunovState } from '@/types/lyapunov';
 
 interface RightPanelProps {
   currentMethod: HandoverMethodType;
@@ -13,7 +14,15 @@ interface RightPanelProps {
   currentSatelliteId?: string | null;
   onGeometricConfigChange?: (config: GeometricConfig) => void;
   onRsrpConfigChange?: (config: RSRPHandoverConfig) => void;
+  lyapunovState?: LyapunovState;
 }
+
+const TITLES: Record<string, string> = {
+  lyapunov: 'Simulation Results',
+  geometric: 'Geometric Decision Details',
+  rsrp: 'RSRP Decision Details',
+  dqn: 'DQN Decision Details',
+};
 
 export function RightPanel({
   currentMethod,
@@ -22,31 +31,24 @@ export function RightPanel({
   currentPhase = 'stable',
   currentSatelliteId,
   onGeometricConfigChange,
-  onRsrpConfigChange
+  onRsrpConfigChange,
+  lyapunovState,
 }: RightPanelProps) {
   return (
     <>
-      {/* CSS 動畫定義 */}
       <style>{`
         @keyframes slideInRight {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
         }
       `}</style>
 
-      {/* 右側面板 */}
       <div style={{
         position: 'absolute',
         top: 0,
         right: 0,
         height: '100%',
-        width: '360px',
+        width: '380px',
         backgroundColor: 'rgba(0, 0, 0, 0.9)',
         backdropFilter: 'blur(10px)',
         borderLeft: '1px solid rgba(255, 255, 255, 0.15)',
@@ -56,7 +58,6 @@ export function RightPanel({
         flexDirection: 'column',
         animation: 'slideInRight 0.3s ease-out'
       }}>
-        {/* 標題區 */}
         <div style={{
           padding: '24px 20px',
           borderBottom: '2px solid rgba(255, 255, 255, 0.15)'
@@ -68,20 +69,37 @@ export function RightPanel({
             letterSpacing: '0.5px',
             textAlign: 'center'
           }}>
-            {currentMethod === 'geometric' && '📊 Geometric Decision Details'}
-            {currentMethod === 'rsrp' && '📶 RSRP Decision Details'}
-            {currentMethod === 'dqn' && '🤖 DQN Decision Details'}
+            {TITLES[currentMethod] ?? 'Details'}
           </div>
         </div>
 
-        {/* 內容區 */}
         <div style={{
           flex: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
           padding: '20px'
         }}>
-          {/* Geometric 方法內容 */}
+          {currentMethod === 'lyapunov' && (
+            lyapunovState && lyapunovState.history.length > 0 ? (
+              <SimulationChartsPanel history={lyapunovState.history} />
+            ) : (
+              <div style={{
+                padding: '16px',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '14px', color: '#999999', lineHeight: '1.6' }}>
+                  Waiting for simulation data...
+                  <div style={{ marginTop: '8px' }}>
+                    Press Play in the Simulation Clock to start
+                  </div>
+                </div>
+              </div>
+            )
+          )}
+
           {currentMethod === 'geometric' && (
             <GeometricMethodPanel
               stats={stats}
@@ -89,7 +107,6 @@ export function RightPanel({
             />
           )}
 
-          {/* RSRP 方法內容 */}
           {currentMethod === 'rsrp' && (
             <RSRPMethodPanel
               stats={stats}
@@ -100,7 +117,6 @@ export function RightPanel({
             />
           )}
 
-          {/* DQN 方法內容 */}
           {currentMethod === 'dqn' && (
             <div style={{
               padding: '16px',
@@ -109,15 +125,8 @@ export function RightPanel({
               border: '1px solid rgba(255, 255, 255, 0.1)',
               textAlign: 'center'
             }}>
-              <div style={{
-                fontSize: '14px',
-                color: '#999999',
-                lineHeight: '1.6'
-              }}>
-                🤖 DQN Method Under Development
-                <div style={{ marginTop: '8px' }}>
-                  Deep Reinforcement Learning strategy coming soon
-                </div>
+              <div style={{ fontSize: '14px', color: '#999999', lineHeight: '1.6' }}>
+                DQN Method Under Development
               </div>
             </div>
           )}

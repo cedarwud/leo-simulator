@@ -1,4 +1,3 @@
-import React from 'react';
 import { HandoverMethodType, HANDOVER_METHODS } from '@/types/handover-method';
 
 interface HandoverMethodSelectorProps {

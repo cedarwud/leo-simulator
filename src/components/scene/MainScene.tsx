@@ -1,8 +1,8 @@
-import React, { Suspense, useRef, useState, useMemo, useCallback } from 'react';
+import { Suspense, useRef, useState, useMemo, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import * as THREE from 'three';
+import { ACESFilmicToneMapping } from 'three';
 import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { Satellites } from '../satellite/Satellites';
@@ -24,9 +24,10 @@ import {
   DEFAULT_CELL_CONFIG,
   EarthFixedCell,
 } from '@/features/beam-hopping/components/EarthFixedCells';
+import { ConflictEdges } from '@/features/beam-hopping/components/ConflictEdges';
 import { useSimulationClock } from '@/hooks/useSimulationClock';
 import { useLyapunovOptimizer } from '@/hooks/useLyapunovOptimizer';
-import { Paper41Config, DEFAULT_PAPER41_CONFIG } from '@/types/paper41';
+import { LyapunovConfig, DEFAULT_LYAPUNOV_CONFIG } from '@/types/lyapunov';
 
 // Loading indicator in 3D scene
 function Loader() {
@@ -46,9 +47,9 @@ function Loader() {
 }
 
 export function MainScene() {
-    const [showDebug] = useState(false); // Set to true to show debug grid
+    const showDebug = false; // Set to true to show debug grid
     const [constellation, setConstellation] = useState<ConstellationType>('starlink');
-    const [handoverMethod, setHandoverMethod] = useState<HandoverMethodType>('rsrp');
+    const [handoverMethod, setHandoverMethod] = useState<HandoverMethodType>('lyapunov');
 
     // Visualization toggles for optional features
     const [visualizationToggles, setVisualizationToggles] = useState<VisualizationToggles>(
@@ -64,8 +65,8 @@ export function MainScene() {
       setVisualizationToggles(prev => ({ ...prev, [key]: value }));
     }, []);
 
-    // Paper 4-1 configuration (mutable for parameter panel)
-    const [paper41Config, setPaper41Config] = useState<Paper41Config>(DEFAULT_PAPER41_CONFIG);
+    // Lyapunov configuration (mutable for parameter panel)
+    const [lyapunovConfig, setLyapunovConfig] = useState<LyapunovConfig>(DEFAULT_LYAPUNOV_CONFIG);
     const [spectrumSharingEnabled, setSpectrumSharingEnabled] = useState(true);
 
     // Handle cells update from Satellites (beam assignments)
@@ -73,7 +74,7 @@ export function MainScene() {
       setCells(updatedCells);
     }, []);
 
-    // Paper 4-1 simulation clock (epoch/slot time system + data queue dynamics)
+    // Lyapunov simulation clock (epoch/slot time system + data queue dynamics)
     const {
       clock,
       queueStates,
@@ -84,12 +85,12 @@ export function MainScene() {
       stepEpoch,
       setSpeed,
       reset: resetClock,
-    } = useSimulationClock(cells, paper41Config);
+    } = useSimulationClock(cells, lyapunovConfig);
 
-    // Paper 4-1 Lyapunov optimization (per-epoch decisions)
+    // Lyapunov Lyapunov optimization (per-epoch decisions)
     // Also provides v2 conflict graph WMIS beam decisions for 3D visualization
-    const { lyapunovState, currentBeamDecision, lastHandoverResult, epochPrimarySatPosition } = useLyapunovOptimizer(
-      cells, clock, queueStates, paper41Config, spectrumSharingEnabled,
+    const { lyapunovState, currentBeamDecision, lastHandoverResult, epochPrimarySatPosition, currentConflictGraph, currentVisibleSatellites } = useLyapunovOptimizer(
+      cells, clock, queueStates, lyapunovConfig, spectrumSharingEnabled,
     );
     const [handoverStats, setHandoverStats] = useState<HandoverStats>({
       totalHandovers: 0,
@@ -167,7 +168,6 @@ export function MainScene() {
           visualizationToggles={visualizationToggles}
           onToggleChange={handleToggleChange}
           simulationClock={clock}
-          queueStates={queueStates}
           avgQueueLength={avgQueueLength}
           maxQueueLength={maxQueueLength}
           onTogglePlay={togglePlay}
@@ -176,8 +176,8 @@ export function MainScene() {
           onSetSpeed={setSpeed}
           onResetClock={resetClock}
           lyapunovState={lyapunovState}
-          paper41Config={paper41Config}
-          onPaper41ConfigChange={setPaper41Config}
+          lyapunovConfig={lyapunovConfig}
+          onLyapunovConfigChange={setLyapunovConfig}
           spectrumSharingEnabled={spectrumSharingEnabled}
           onSpectrumSharingToggle={setSpectrumSharingEnabled}
         />
@@ -191,6 +191,7 @@ export function MainScene() {
           currentSatelliteId={currentSatelliteId}
           onGeometricConfigChange={setGeometricConfig}
           onRsrpConfigChange={setRsrpConfig}
+          lyapunovState={lyapunovState}
         />
   
         {/* Handover legend (shown only during handover) */}
@@ -202,10 +203,9 @@ export function MainScene() {
         <Canvas
           shadows
           gl={{
-            toneMapping: THREE.ACESFilmicToneMapping,
+            toneMapping: ACESFilmicToneMapping,
             toneMappingExposure: 1.2,
             alpha: true,
-            preserveDrawingBuffer: false,
             powerPreference: 'high-performance',
             antialias: true,
           }}
@@ -216,7 +216,7 @@ export function MainScene() {
           {/* Camera */}
           <PerspectiveCamera
             makeDefault
-            position={NTPU_CONFIG.camera.initialPosition.toArray()} // Use config again
+            position={NTPU_CONFIG.camera.initialPosition}
             fov={NTPU_CONFIG.camera.fov}
             near={NTPU_CONFIG.camera.near}
             far={NTPU_CONFIG.camera.far}
@@ -270,7 +270,12 @@ export function MainScene() {
               queueStates={queueStates}
             />
           )}
-  
+
+          {/* Conflict graph edges (optional - Lyapunov mode only) */}
+          {visualizationToggles.showConflictEdges && currentConflictGraph && (
+            <ConflictEdges graph={currentConflictGraph} cells={cells} />
+          )}
+
           {/* Satellite system */}
           <Suspense fallback={null}>
             <Satellites
@@ -285,8 +290,9 @@ export function MainScene() {
               showBeamLabels={visualizationToggles.showBeamLabels}
               onCellsUpdate={handleCellsUpdate}
               wmisAssignments={currentBeamDecision.assignments}
-              epochHandoverResult={handoverMethod === 'paper41' ? lastHandoverResult : undefined}
-              epochPrimarySatPosition={handoverMethod === 'paper41' ? epochPrimarySatPosition : undefined}
+              epochHandoverResult={handoverMethod === 'lyapunov' ? lastHandoverResult : undefined}
+              epochPrimarySatPosition={handoverMethod === 'lyapunov' ? epochPrimarySatPosition : undefined}
+              algorithmicSatellites={handoverMethod === 'lyapunov' ? currentVisibleSatellites : undefined}
               key={`${constellation}-${handoverMethod}`} // Force reload when constellation or method changes
             />
           </Suspense>

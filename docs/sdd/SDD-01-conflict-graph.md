@@ -2,7 +2,7 @@
 
 ## 1. 目的
 
-實作 Paper 4-1 的核心 beam hopping 排程演算法，基於 conflict graph 和加權最大獨立集 (WMIS) 貪婪求解。
+實作 Lyapunov 的核心 beam hopping 排程演算法，基於 conflict graph 和加權最大獨立集 (WMIS) 貪婪求解。
 
 ## 2. 論文對應
 

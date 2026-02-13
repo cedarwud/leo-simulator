@@ -1,5 +1,5 @@
 /**
- * Parameter Sweep Runners — Paper 4-1, Fig. 10, 11, 12
+ * Parameter Sweep Runners — Lyapunov, Fig. 10, 11, 12
  *
  * Batch simulations for:
  *   Fig. 10: Static spectrum sharing SINR/INR CDF
@@ -13,12 +13,12 @@
 
 import {
   CellQueueState,
-  Paper41Config,
-  DEFAULT_PAPER41_CONFIG,
+  LyapunovConfig,
+  DEFAULT_LYAPUNOV_CONFIG,
   VirtualQueue,
   TerrestrialCluster,
   DEFAULT_SPECTRUM_SHARING_CONFIG,
-} from '@/types/paper41';
+} from '@/types/lyapunov';
 import { EarthFixedCell, SCENE_TO_KM_SCALE } from '../components/EarthFixedCells';
 import { generateConstellation } from './constellation';
 import { buildConflictGraph, SatelliteCellAssignment } from './conflictGraph';
@@ -32,7 +32,7 @@ import {
   computeFSPL,
   DEFAULT_PHYSICAL_LAYER_CONFIG,
 } from './channelModel';
-import { Paper41HandoverManager } from '@/utils/satellite/Paper41HandoverManager';
+import { LyapunovHandoverManager } from '@/utils/satellite/LyapunovHandoverManager';
 import {
   generateTerrestrialClusters,
   decideSpectrumSharing,
@@ -91,6 +91,19 @@ interface SimulationOptions {
   fullBuffer?: boolean;
 }
 
+/** Progress callback for async operations */
+export type ProgressCallback = (progress: number, label: string) => void;
+
+/** Yield to main thread so UI stays responsive */
+function yieldToMain(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+/** Epoch batch size before yielding to main thread.
+ *  Each epoch includes constellation + conflict graph + WMIS × slotsPerEpoch,
+ *  so even 1 epoch can take 10-50ms. Keep this small for smooth UI. */
+const CHUNK_SIZE = 5;
+
 /**
  * Run a single simulation with the given config.
  * Shared by both V sweep and rate sweep.
@@ -99,7 +112,7 @@ interface SimulationOptions {
  */
 function runSimulation(
   cells: EarthFixedCell[],
-  config: Paper41Config,
+  config: LyapunovConfig,
   numEpochs: number,
   options: SimulationOptions = {},
 ): VSweepEpochMetrics[] {
@@ -121,7 +134,7 @@ function runSimulation(
     : [];
 
   let totalHandovers = 0;
-  const handoverManager = new Paper41HandoverManager(config);
+  const handoverManager = new LyapunovHandoverManager(config);
   const epochDurationS = config.slotsPerEpoch * config.slotDurationMs / 1000;
   const snrLinear = Math.pow(10, config.targetSnrDb / 10);
   const defaultCapacity =
@@ -258,7 +271,166 @@ function runSimulation(
   return metrics;
 }
 
-// ─── V Parameter Sweep (Fig. 12) ────────────────────────────────────────────
+/**
+ * Async version of runSimulation that yields every CHUNK_SIZE epochs.
+ */
+async function runSimulationAsync(
+  cells: EarthFixedCell[],
+  config: LyapunovConfig,
+  numEpochs: number,
+  options: SimulationOptions = {},
+  onProgress?: (epochsDone: number, totalEpochs: number) => void,
+): Promise<VSweepEpochMetrics[]> {
+  const { enableSpectrumSharing = true, fullBuffer = false } = options;
+  const cellIds = cells.map(c => c.id);
+  const metrics: VSweepEpochMetrics[] = [];
+
+  let dataQueues: CellQueueState[] = cellIds.map(cellId => ({
+    cellId, queueLength: fullBuffer ? 1e6 : 0, arrivalData: 0, servedData: 0, slotsServed: 0,
+  }));
+
+  let virtualQueues: VirtualQueue[] = cellIds.map(cellId => ({
+    cellId, value: 0,
+  }));
+
+  const terrestrialClusters: TerrestrialCluster[] = enableSpectrumSharing
+    ? generateTerrestrialClusters(cellIds)
+    : [];
+
+  let totalHandovers = 0;
+  const handoverManager = new LyapunovHandoverManager(config);
+  const epochDurationS = config.slotsPerEpoch * config.slotDurationMs / 1000;
+  const snrLinear = Math.pow(10, config.targetSnrDb / 10);
+  const defaultCapacity =
+    (config.satelliteBandwidthMhz / config.beamsPerSatellite) *
+    (config.slotDurationMs / 1000) *
+    Math.log2(1 + snrLinear);
+
+  for (let epoch = 1; epoch <= numEpochs; epoch++) {
+    // Yield every CHUNK_SIZE epochs
+    if (epoch % CHUNK_SIZE === 0) {
+      onProgress?.(epoch, numEpochs);
+      await yieldToMain();
+    }
+
+    const satellites = generateConstellation(epoch, cellIds, undefined, epochDurationS);
+    if (satellites.length === 0) continue;
+
+    const hoResult = handoverManager.decide(cells, satellites, dataQueues, virtualQueues);
+    const handoverIndicators = new Map<number, boolean>();
+    for (const a of hoResult.assignments) {
+      handoverIndicators.set(a.cellId, a.isHandover);
+    }
+
+    const satAssignments: SatelliteCellAssignment[] = hoResult.assignments.map(a => {
+      const sat = satellites.find(s => s.id === a.satelliteId);
+      const elev = sat?.elevations.get(a.cellId) ?? 35;
+      return {
+        satId: a.satelliteId, cellId: a.cellId, elevationDeg: elev,
+        satPosition: sat?.position
+          ? { x: sat.position.x, y: sat.position.y, z: sat.position.z }
+          : undefined,
+      };
+    });
+    const conflictGraph = buildConflictGraph(cells, satAssignments, config.beamsPerSatellite, {
+      physical: DEFAULT_PHYSICAL_LAYER_CONFIG,
+      numVisibleSats: satellites.length,
+      targetSnrDb: config.targetSnrDb,
+      sceneToKmScale: SCENE_TO_KM_SCALE,
+    });
+
+    const cellAssignments: Array<{ cellId: number; elevationDeg: number }> = [];
+    const cellElevations = new Map<number, number>();
+    for (const a of hoResult.assignments) {
+      const sat = satellites.find(s => s.id === a.satelliteId);
+      if (sat) {
+        const elev = sat.elevations.get(a.cellId) ?? 35;
+        cellAssignments.push({ cellId: a.cellId, elevationDeg: elev });
+        cellElevations.set(a.cellId, elev);
+      }
+    }
+    const cellCapacityMap = cellAssignments.length > 0
+      ? computeCellCapacityMap(
+          cellAssignments, DEFAULT_PHYSICAL_LAYER_CONFIG,
+          config.satelliteBandwidthMhz, config.beamsPerSatellite, config.slotDurationMs,
+        )
+      : undefined;
+
+    const simQueues = dataQueues.map(q => ({ ...q }));
+    for (let slot = 0; slot < config.slotsPerEpoch; slot++) {
+      const decision = solveWMIS(conflictGraph, simQueues, config, cellCapacityMap);
+      for (const a of decision.assignments) {
+        const q = simQueues.find(sq => sq.cellId === a.cellId);
+        if (q) {
+          const cap = cellCapacityMap?.get(a.cellId) ?? defaultCapacity;
+          q.servedData += cap;
+          q.slotsServed += 1;
+        }
+      }
+    }
+
+    if (enableSpectrumSharing && terrestrialClusters.length > 0) {
+      const ssDecisions = decideSpectrumSharing(
+        simQueues, terrestrialClusters, config,
+        DEFAULT_SPECTRUM_SHARING_CONFIG,
+        cellElevations.size > 0 ? cellElevations : undefined,
+      );
+      const queuesWithSharing = applySpectrumSharingGain(simQueues, ssDecisions, config.slotsPerEpoch);
+      for (let i = 0; i < simQueues.length; i++) {
+        simQueues[i].servedData = queuesWithSharing[i].servedData;
+      }
+    }
+
+    const drift = simQueues.reduce((s, q) => {
+      const gap = q.servedData - q.queueLength;
+      return s + gap * gap;
+    }, 0);
+
+    if (fullBuffer) {
+      dataQueues = simQueues.map(q => ({
+        cellId: q.cellId,
+        queueLength: 1e6,
+        arrivalData: 0, servedData: 0, slotsServed: 0,
+      }));
+    } else {
+      dataQueues = simQueues.map((q, i) => {
+        const ratio = i < 20 ? DEMAND_TABLE[i] : 0.05;
+        const demand = config.totalArrivalRateGbps * 1000 * ratio *
+          (config.slotsPerEpoch * config.slotDurationMs / 1000);
+        return {
+          cellId: q.cellId,
+          queueLength: Math.max(q.queueLength - q.servedData, 0) + demand,
+          arrivalData: demand, servedData: 0, slotsServed: 0,
+        };
+      });
+    }
+
+    virtualQueues = virtualQueues.map(vq => {
+      const didHandover = handoverIndicators.get(vq.cellId) ? 1 : 0;
+      return { ...vq, value: Math.max(vq.value + didHandover - config.maxHandoverFrequency, 0) };
+    });
+
+    const penalty = virtualQueues.reduce((s, vq) => {
+      const didHandover = handoverIndicators.get(vq.cellId) ? 1 : 0;
+      return s + vq.value * didHandover;
+    }, 0);
+    const driftPlusPenalty = penalty + config.lyapunovV * drift;
+
+    const epochHandovers = Array.from(handoverIndicators.values()).filter(Boolean).length;
+    totalHandovers += epochHandovers;
+
+    metrics.push({
+      epoch,
+      handoverFrequency: totalHandovers / epoch,
+      driftPlusPenalty,
+      avgQueueLength: dataQueues.reduce((s, q) => s + q.queueLength, 0) / Math.max(dataQueues.length, 1),
+    });
+  }
+
+  return metrics;
+}
+
+// ─── V Parameter Sweep ──────────────────────────────────────────────────────
 
 /**
  * Run V parameter sweep.
@@ -272,11 +444,11 @@ export function runVParameterSweep(
   cells: EarthFixedCell[],
   vValues: number[] = [10, 50, 100, 200, 500],
   numEpochs: number = 20000,
-  baseConfig: Paper41Config = DEFAULT_PAPER41_CONFIG,
+  baseConfig: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
 ): VSweepResult {
   const series: VSweepSeries[] = [];
   for (const V of vValues) {
-    const config: Paper41Config = { ...baseConfig, lyapunovV: V };
+    const config: LyapunovConfig = { ...baseConfig, lyapunovV: V };
     // Fig.12: full-buffer traffic model per paper Section V-C
     // Paper Fig.12 uses B=4, σ₀=0.9 (Group 1 beam hopping) — no spectrum sharing
     series.push({ V, metrics: runSimulation(cells, config, numEpochs, { fullBuffer: true, enableSpectrumSharing: false }) });
@@ -301,11 +473,11 @@ export function runArrivalRateSweep(
   cells: EarthFixedCell[],
   rates: number[] = [10.219, 10.608, 10.996, 11.385, 11.871],
   numEpochs: number = 20000,
-  baseConfig: Paper41Config = DEFAULT_PAPER41_CONFIG,
+  baseConfig: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
 ): RateSweepResult {
   const series: RateSweepSeries[] = [];
   for (const rate of rates) {
-    const config: Paper41Config = { ...baseConfig, totalArrivalRateGbps: rate };
+    const config: LyapunovConfig = { ...baseConfig, totalArrivalRateGbps: rate };
     series.push({ rateGbps: rate, metrics: runSimulation(cells, config, numEpochs) });
   }
   return { rates, series };
@@ -423,6 +595,148 @@ export function runFig10CDFAnalysis(
       points.push({ value: sorted[i], probability: (i + 1) / n });
     }
     // Ensure last point
+    if (points.length === 0 || points[points.length - 1].probability < 1) {
+      points.push({ value: sorted[n - 1], probability: 1 });
+    }
+    return points;
+  };
+
+  return {
+    inrCdf: buildCDF(inrSamples),
+    sinrWideCdf: buildCDF(sinrWideSamples),
+    sinrEdgeCdf: buildCDF(sinrEdgeSamples),
+    numSamples,
+  };
+}
+
+// ─── Async versions (non-blocking UI) ───────────────────────────────────────
+
+/**
+ * Async V parameter sweep — yields to main thread between epochs.
+ */
+export async function runVParameterSweepAsync(
+  cells: EarthFixedCell[],
+  vValues: number[] = [10, 50, 100, 200, 500],
+  numEpochs: number = 20000,
+  baseConfig: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
+  onProgress?: ProgressCallback,
+): Promise<VSweepResult> {
+  const series: VSweepSeries[] = [];
+  const totalWork = vValues.length * numEpochs;
+
+  for (let vi = 0; vi < vValues.length; vi++) {
+    const V = vValues[vi];
+    const config: LyapunovConfig = { ...baseConfig, lyapunovV: V };
+    const metrics = await runSimulationAsync(
+      cells, config, numEpochs,
+      { fullBuffer: true, enableSpectrumSharing: false },
+      (epochsDone) => {
+        const done = vi * numEpochs + epochsDone;
+        onProgress?.(done / totalWork, `V=${V}: ${epochsDone}/${numEpochs}`);
+      },
+    );
+    series.push({ V, metrics });
+  }
+  return { vValues, series };
+}
+
+/**
+ * Async arrival rate sweep — yields to main thread between epochs.
+ */
+export async function runArrivalRateSweepAsync(
+  cells: EarthFixedCell[],
+  rates: number[] = [10.219, 10.608, 10.996, 11.385, 11.871],
+  numEpochs: number = 20000,
+  baseConfig: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
+  onProgress?: ProgressCallback,
+): Promise<RateSweepResult> {
+  const series: RateSweepSeries[] = [];
+  const totalWork = rates.length * numEpochs;
+
+  for (let ri = 0; ri < rates.length; ri++) {
+    const rate = rates[ri];
+    const config: LyapunovConfig = { ...baseConfig, totalArrivalRateGbps: rate };
+    const metrics = await runSimulationAsync(
+      cells, config, numEpochs,
+      {},
+      (epochsDone) => {
+        const done = ri * numEpochs + epochsDone;
+        onProgress?.(done / totalWork, `${rate}G: ${epochsDone}/${numEpochs}`);
+      },
+    );
+    series.push({ rateGbps: rate, metrics });
+  }
+  return { rates, series };
+}
+
+/**
+ * Async CDF analysis — yields to main thread between sample chunks.
+ */
+export async function runFig10CDFAnalysisAsync(
+  numSamples: number = 10000,
+  elevationRange: [number, number] = [35, 90],
+  onProgress?: ProgressCallback,
+): Promise<Fig10CDFResult> {
+  const cfg = DEFAULT_PHYSICAL_LAYER_CONFIG;
+  const terrBwMhz = 100;
+  const terrTxPowerDbm = 30;
+  const terrUserDistKm = 1.0;
+
+  const inrSamples: number[] = [];
+  const sinrWideSamples: number[] = [];
+  const sinrEdgeSamples: number[] = [];
+
+  const CDF_CHUNK = 1000;
+
+  for (let i = 0; i < numSamples; i++) {
+    if (i > 0 && i % CDF_CHUNK === 0) {
+      onProgress?.(i / numSamples, `${i}/${numSamples} samples`);
+      await yieldToMain();
+    }
+
+    const elev = elevationRange[0] +
+      Math.random() * (elevationRange[1] - elevationRange[0]);
+    const offAxisWide = Math.random() * cfg.beamwidth3dBDeg * 0.5;
+    const offAxisEdge = cfg.beamwidth3dBDeg * (0.7 + Math.random() * 0.6);
+    const load = 0.4 + Math.random() * 0.2;
+
+    const satDist = computeSlantDistance(cfg.orbitalAltitudeKm, elev);
+    const h = computeChannelGain(satDist, elev, cfg.frequencyGhz, cfg);
+    const hDb = h > 0 ? 10 * Math.log10(h) : -200;
+
+    const availBwMhz = terrBwMhz * (1 - load);
+    const noisePowerW = computeNoisePower(cfg.receiverTempK, availBwMhz);
+    const noiseDbm = 10 * Math.log10(noisePowerW * 1000);
+
+    const satOffAxis = cfg.beamwidth3dBDeg * (0.3 + Math.random() * 0.7);
+    const gTxOff = computeAntennaGain(satOffAxis, cfg.txPeakGainDbi, cfg.beamwidth3dBDeg, cfg.sideLobeLevel);
+    const satInterfDbm = cfg.txPowerDbm + gTxOff + cfg.terrestrialRxGainDbi + hDb;
+    const inrDb = satInterfDbm - noiseDbm;
+    inrSamples.push(inrDb);
+
+    const terrPL = computeFSPL(terrUserDistKm, cfg.frequencyGhz);
+    const terrSignalDbm = terrTxPowerDbm - terrPL;
+    const terrSignalW = Math.pow(10, (terrSignalDbm - 30) / 10);
+
+    const gTxWide = computeAntennaGain(offAxisWide, cfg.txPeakGainDbi, cfg.beamwidth3dBDeg, cfg.sideLobeLevel);
+    const satInterfWideDbm = cfg.txPowerDbm + gTxWide + cfg.terrestrialRxGainDbi + hDb;
+    const satInterfWideW = Math.pow(10, (satInterfWideDbm - 30) / 10);
+    sinrWideSamples.push(10 * Math.log10(terrSignalW / (noisePowerW + satInterfWideW)));
+
+    const gTxEdge = computeAntennaGain(offAxisEdge, cfg.txPeakGainDbi, cfg.beamwidth3dBDeg, cfg.sideLobeLevel);
+    const satInterfEdgeDbm = cfg.txPowerDbm + gTxEdge + cfg.terrestrialRxGainDbi + hDb;
+    const satInterfEdgeW = Math.pow(10, (satInterfEdgeDbm - 30) / 10);
+    sinrEdgeSamples.push(10 * Math.log10(terrSignalW / (noisePowerW + satInterfEdgeW)));
+  }
+
+  const buildCDF = (samples: number[]): CDFPoint[] => {
+    const sorted = [...samples].sort((a, b) => a - b);
+    const n = sorted.length;
+    const step = Math.max(1, Math.floor(n / 200));
+    const points: CDFPoint[] = [];
+    for (let i = 0; i < n; i += step) {
+      points.push({ value: sorted[i], probability: (i + 1) / n });
+    }
     if (points.length === 0 || points[points.length - 1].probability < 1) {
       points.push({ value: sorted[n - 1], probability: 1 });
     }

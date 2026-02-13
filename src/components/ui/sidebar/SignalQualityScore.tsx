@@ -1,4 +1,3 @@
-import React from 'react';
 
 interface SignalQualityScoreProps {
   value: number; // 0-100

@@ -1,5 +1,5 @@
 /**
- * WMIS Beam Hopping Scheduler v2 — Paper 4-1, Algorithm 2
+ * WMIS Beam Hopping Scheduler v2 — Lyapunov, Algorithm 2
  *
  * Weighted Maximum Independent Set greedy approximation for beam-cell assignment.
  *
@@ -17,7 +17,7 @@
  */
 
 import { ConflictGraph, ConflictVertex } from './conflictGraph';
-import { CellQueueState, Paper41Config, DEFAULT_PAPER41_CONFIG, CellCapacityMap } from '@/types/paper41';
+import { CellQueueState, LyapunovConfig, DEFAULT_LYAPUNOV_CONFIG, CellCapacityMap } from '@/types/lyapunov';
 
 /** Beam Hopping decision result: beam → cell assignments per slot */
 export interface BeamHoppingDecision {
@@ -47,7 +47,7 @@ export interface BeamHoppingDecision {
 export function computeVertexWeight(
   vertex: ConflictVertex,
   queueState: CellQueueState | undefined,
-  config: Paper41Config,
+  config: LyapunovConfig,
   cellCapacityMap?: CellCapacityMap,
 ): number {
   if (!queueState) return 0;
@@ -70,7 +70,7 @@ export function computeVertexWeight(
 /**
  * Compute capacity per slot from config
  */
-export function computeCapacityPerSlotForConfig(config: Paper41Config): number {
+export function computeCapacityPerSlotForConfig(config: LyapunovConfig): number {
   const snrLinear = Math.pow(10, config.targetSnrDb / 10);
   return (
     (config.satelliteBandwidthMhz / config.beamsPerSatellite) *
@@ -93,7 +93,7 @@ export function computeCapacityPerSlotForConfig(config: Paper41Config): number {
 export function solveWMIS(
   graph: ConflictGraph,
   queueStates: CellQueueState[],
-  config: Paper41Config = DEFAULT_PAPER41_CONFIG,
+  config: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
   cellCapacityMap?: CellCapacityMap,
 ): BeamHoppingDecision {
   // Build cellId → queueState mapping (clone for intra-slot update)
@@ -206,7 +206,7 @@ export function solveWMIS(
 export function solveWMIS_MonteCarlo(
   graph: ConflictGraph,
   queueStates: CellQueueState[],
-  config: Paper41Config = DEFAULT_PAPER41_CONFIG,
+  config: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
   trials: number = 10,
   cellCapacityMap?: CellCapacityMap,
 ): BeamHoppingDecision {
@@ -262,7 +262,7 @@ export function solveWMIS_MonteCarlo(
 export function scheduleEpoch(
   graph: ConflictGraph,
   queueStates: CellQueueState[],
-  config: Paper41Config = DEFAULT_PAPER41_CONFIG,
+  config: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
   cellCapacityMap?: CellCapacityMap,
 ): BeamHoppingDecision[] {
   const decisions: BeamHoppingDecision[] = [];

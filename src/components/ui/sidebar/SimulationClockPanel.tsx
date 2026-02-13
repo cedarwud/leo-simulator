@@ -1,9 +1,7 @@
-import React from 'react';
-import { SimulationClock, CellQueueState, LyapunovState } from '@/types/paper41';
+import { SimulationClock, LyapunovState } from '@/types/lyapunov';
 
 interface SimulationClockPanelProps {
   clock: SimulationClock;
-  queueStates: CellQueueState[];
   avgQueueLength: number;
   maxQueueLength: number;
   onTogglePlay: () => void;
@@ -18,7 +16,6 @@ const SPEED_OPTIONS = [1, 5, 10, 50];
 
 export function SimulationClockPanel({
   clock,
-  queueStates,
   avgQueueLength,
   maxQueueLength,
   onTogglePlay,
@@ -45,7 +42,7 @@ export function SimulationClockPanel({
         alignItems: 'center',
         gap: '8px',
       }}>
-        Paper 4-1 Simulation Clock
+        Simulation Clock
       </div>
 
       {/* Epoch / Slot display */}
@@ -249,35 +246,6 @@ export function SimulationClockPanel({
             {maxQueueLength.toFixed(1)}
           </div>
         </div>
-
-        <div style={{
-          padding: '10px',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          borderRadius: '6px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-        }}>
-          <div style={{ fontSize: '11px', color: '#999999', marginBottom: '4px' }}>
-            Served Cells
-          </div>
-          <div style={{ fontSize: '18px', color: '#44ff88', fontWeight: '600', fontFamily: 'monospace' }}>
-            {queueStates.filter(q => q.slotsServed > 0).length}
-            <span style={{ fontSize: '12px', color: '#666666' }}>/{queueStates.length}</span>
-          </div>
-        </div>
-
-        <div style={{
-          padding: '10px',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          borderRadius: '6px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-        }}>
-          <div style={{ fontSize: '11px', color: '#999999', marginBottom: '4px' }}>
-            Slot Duration
-          </div>
-          <div style={{ fontSize: '18px', color: '#88ccff', fontWeight: '600', fontFamily: 'monospace' }}>
-            {clock.slotDurationMs}<span style={{ fontSize: '12px', color: '#666666' }}>ms</span>
-          </div>
-        </div>
       </div>
 
       {/* Lyapunov Framework Metrics */}
@@ -326,22 +294,6 @@ export function SimulationClockPanel({
                 </div>
                 <div style={{ fontSize: '16px', color: '#cc88ff', fontWeight: '600', fontFamily: 'monospace' }}>
                   {(lyapunovState.resourceUtilization * 100).toFixed(0)}%
-                </div>
-              </div>
-
-              <div style={{
-                padding: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                borderRadius: '6px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-              }}>
-                <div style={{ fontSize: '10px', color: '#999999', marginBottom: '3px' }}>
-                  Drift+Penalty
-                </div>
-                <div style={{ fontSize: '14px', color: '#cc88ff', fontWeight: '600', fontFamily: 'monospace' }}>
-                  {lyapunovState.driftPlusPenalty < 1000
-                    ? lyapunovState.driftPlusPenalty.toFixed(1)
-                    : `${(lyapunovState.driftPlusPenalty / 1000).toFixed(1)}k`}
                 </div>
               </div>
 

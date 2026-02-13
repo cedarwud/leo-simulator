@@ -4,8 +4,8 @@ import {
   decideSpectrumSharing,
   applySpectrumSharingGain,
 } from '../spectrumSharing';
-import { DEFAULT_PAPER41_CONFIG, DEFAULT_SPECTRUM_SHARING_CONFIG } from '@/types/paper41';
-import type { CellQueueState, TerrestrialCluster, SpectrumSharingConfig } from '@/types/paper41';
+import { DEFAULT_LYAPUNOV_CONFIG, DEFAULT_SPECTRUM_SHARING_CONFIG } from '@/types/lyapunov';
+import type { CellQueueState, TerrestrialCluster, SpectrumSharingConfig } from '@/types/lyapunov';
 
 function mockQueue(cellId: number, queueLength: number): CellQueueState {
   return { cellId, queueLength, arrivalData: 0, servedData: 0, slotsServed: 0 };
@@ -51,7 +51,7 @@ describe('spectrumSharing', () => {
         { cellId: 3, load: 0.5, bandwidthMhz: 100 },
       ];
 
-      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_PAPER41_CONFIG);
+      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_LYAPUNOV_CONFIG);
       expect(decisions.length).toBe(3);
     });
 
@@ -62,7 +62,7 @@ describe('spectrumSharing', () => {
         { cellId: 1, load: 0.6, bandwidthMhz: 100 }, // interference = -20 + 0.6*20 = -8 > -10 threshold
       ];
 
-      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_PAPER41_CONFIG);
+      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_LYAPUNOV_CONFIG);
       // With load=0.6, interference=-8dB which exceeds threshold=-10dB
       expect(decisions[0].useSharedSpectrum).toBe(false);
     });
@@ -75,7 +75,7 @@ describe('spectrumSharing', () => {
         { cellId: 1, load: 0.4, bandwidthMhz: 100 }, // interference = -20 + 0.4*20 = -12 < -10
       ];
 
-      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_PAPER41_CONFIG);
+      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_LYAPUNOV_CONFIG);
       // BSSA should find sharing beneficial (large queue needs the capacity)
       expect(decisions[0].useSharedSpectrum).toBe(true);
       expect(decisions[0].capacityGain).toBeGreaterThan(0);
@@ -89,7 +89,7 @@ describe('spectrumSharing', () => {
       ];
 
       const disabledConfig = { ...DEFAULT_SPECTRUM_SHARING_CONFIG, enabled: false };
-      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_PAPER41_CONFIG, disabledConfig);
+      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_LYAPUNOV_CONFIG, disabledConfig);
 
       expect(decisions.every(d => d.useSharedSpectrum === false)).toBe(true);
       expect(decisions.every(d => d.capacityGain === 0)).toBe(true);
@@ -107,7 +107,7 @@ describe('spectrumSharing', () => {
         bandwidthMhz: 100,
       }));
 
-      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_PAPER41_CONFIG);
+      const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_LYAPUNOV_CONFIG);
       const sharingCount = decisions.filter(d => d.useSharedSpectrum).length;
 
       // BSSA should find at least some cells to share
@@ -134,7 +134,7 @@ describe('spectrumSharing', () => {
           ...DEFAULT_SPECTRUM_SHARING_CONFIG,
           terrestrialCellsPerBeam: N,
         };
-        const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_PAPER41_CONFIG, ssConfig);
+        const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_LYAPUNOV_CONFIG, ssConfig);
         sharingCounts.push(decisions.filter(d => d.useSharedSpectrum).length);
       }
 
@@ -165,7 +165,7 @@ describe('spectrumSharing', () => {
           ...DEFAULT_SPECTRUM_SHARING_CONFIG,
           terrestrialCellsPerBeam: N,
         };
-        const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_PAPER41_CONFIG, ssConfig);
+        const decisions = decideSpectrumSharing(queues, clusters, DEFAULT_LYAPUNOV_CONFIG, ssConfig);
         sharingCounts.push(decisions.filter(d => d.useSharedSpectrum).length);
       }
 

@@ -7,7 +7,7 @@ import {
   runEpochDecision,
 } from '../lyapunovOptimizer';
 import { buildConflictGraph } from '../conflictGraph';
-import { DEFAULT_PAPER41_CONFIG } from '@/types/paper41';
+import { DEFAULT_LYAPUNOV_CONFIG } from '@/types/lyapunov';
 import type { EarthFixedCell } from '@/features/beam-hopping/components/EarthFixedCells';
 
 function mockCell(id: number, x: number, z: number): EarthFixedCell {
@@ -135,7 +135,7 @@ describe('lyapunovOptimizer', () => {
       const graph = buildConflictGraph(cells, 4);
       const hoIndicators = new Map(cellIds.map(id => [id, false] as [number, boolean]));
 
-      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_PAPER41_CONFIG);
+      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_LYAPUNOV_CONFIG);
       expect(result.updatedState.epoch).toBe(1);
     });
 
@@ -145,7 +145,7 @@ describe('lyapunovOptimizer', () => {
       const graph = buildConflictGraph(cells, 4);
       const hoIndicators = new Map(cellIds.map(id => [id, false] as [number, boolean]));
 
-      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_PAPER41_CONFIG);
+      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_LYAPUNOV_CONFIG);
       expect(result.updatedState.history.length).toBe(1);
       expect(result.updatedState.history[0].epoch).toBe(1);
     });
@@ -156,7 +156,7 @@ describe('lyapunovOptimizer', () => {
       const graph = buildConflictGraph(cells, 4);
       const hoIndicators = new Map(cellIds.map(id => [id, false] as [number, boolean]));
 
-      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_PAPER41_CONFIG);
+      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_LYAPUNOV_CONFIG);
       for (const q of result.updatedState.dataQueues) {
         expect(q.queueLength).toBeGreaterThanOrEqual(0);
       }
@@ -167,7 +167,7 @@ describe('lyapunovOptimizer', () => {
       const state = initLyapunovState(cellIds);
       const graph = buildConflictGraph(cells, 4);
       const hoIndicators = new Map(cellIds.map(id => [id, false] as [number, boolean]));
-      const config = DEFAULT_PAPER41_CONFIG;
+      const config = DEFAULT_LYAPUNOV_CONFIG;
 
       const result = runEpochDecision(state, graph, hoIndicators, config);
       const { driftValue, penaltyValue, driftPlusPenalty } = result.updatedState;
@@ -188,7 +188,7 @@ describe('lyapunovOptimizer', () => {
       hoIndicators.set(4, false);
       hoIndicators.set(5, false);
 
-      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_PAPER41_CONFIG);
+      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_LYAPUNOV_CONFIG);
       expect(result.updatedState.totalHandovers).toBe(2);
     });
 
@@ -198,7 +198,7 @@ describe('lyapunovOptimizer', () => {
       const graph = buildConflictGraph(cells, 4);
       const hoIndicators = new Map(cellIds.map(id => [id, false] as [number, boolean]));
 
-      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_PAPER41_CONFIG);
+      const result = runEpochDecision(state, graph, hoIndicators, DEFAULT_LYAPUNOV_CONFIG);
       expect(result.timings).toBeDefined();
       expect(result.timings.algorithm2).toBeGreaterThanOrEqual(0);
       expect(result.timings.algorithm3).toBeGreaterThanOrEqual(0);

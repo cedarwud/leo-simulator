@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { computeVertexWeight, solveWMIS } from '../wmisScheduler';
 import type { ConflictVertex } from '../conflictGraph';
 import { buildConflictGraph } from '../conflictGraph';
-import type { CellQueueState, Paper41Config } from '@/types/paper41';
-import { DEFAULT_PAPER41_CONFIG } from '@/types/paper41';
+import type { CellQueueState, LyapunovConfig } from '@/types/lyapunov';
+import { DEFAULT_LYAPUNOV_CONFIG } from '@/types/lyapunov';
 import type { EarthFixedCell } from '@/features/beam-hopping/components/EarthFixedCells';
 
 function mockCell(id: number, x: number, z: number): EarthFixedCell {
@@ -35,7 +35,7 @@ function mockQueueState(cellId: number, queueLength: number): CellQueueState {
 }
 
 describe('wmisScheduler', () => {
-  const config = DEFAULT_PAPER41_CONFIG;
+  const config = DEFAULT_LYAPUNOV_CONFIG;
 
   describe('computeVertexWeight (Eq. 35)', () => {
     const dummyVertex: ConflictVertex = { id: 'satdefault_cell1_beam1', satId: 'default', cellId: 1, beamId: 1, polarization: 'A', weight: 0 };

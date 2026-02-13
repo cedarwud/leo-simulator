@@ -1,15 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { HandoverMethodType, HANDOVER_METHODS, HandoverStats } from '@/types/handover-method';
 import { ConstellationType } from '../controls/ConstellationSelector';
 import { GlobalControls } from './sidebar/GlobalControls';
-import { EnergyEfficiencyPanel } from './sidebar/EnergyEfficiencyPanel';
 import { VisualizationTogglePanel } from './sidebar/VisualizationTogglePanel';
 import { SimulationClockPanel } from './sidebar/SimulationClockPanel';
-import { Paper41ParamsPanel } from './sidebar/Paper41ParamsPanel';
-import { SimulationChartsPanel } from './sidebar/SimulationChartsPanel';
-import { ConstraintValidationPanel } from './sidebar/ConstraintValidationPanel';
+import { LyapunovParamsPanel } from './sidebar/LyapunovParamsPanel';
 import type { VisualizationToggles } from '@/types/unified-scene';
-import type { SimulationClock, CellQueueState, LyapunovState, Paper41Config } from '@/types/paper41';
+import type { SimulationClock, LyapunovState, LyapunovConfig } from '@/types/lyapunov';
 
 // Derive readable text colors based on background brightness
 function getContrastTextColor(hex: string) {
@@ -59,9 +56,8 @@ interface SidebarProps {
   visualizationToggles: VisualizationToggles;
   onToggleChange: (key: keyof VisualizationToggles, value: boolean) => void;
 
-  // Paper 4-1 模擬時鐘
+  // Lyapunov 模擬時鐘
   simulationClock: SimulationClock;
-  queueStates: CellQueueState[];
   avgQueueLength: number;
   maxQueueLength: number;
   onTogglePlay: () => void;
@@ -71,9 +67,9 @@ interface SidebarProps {
   onResetClock: () => void;
   lyapunovState?: LyapunovState;
 
-  // Paper 4-1 參數面板
-  paper41Config?: Paper41Config;
-  onPaper41ConfigChange?: (config: Paper41Config) => void;
+  // Lyapunov 參數面板
+  lyapunovConfig?: LyapunovConfig;
+  onLyapunovConfigChange?: (config: LyapunovConfig) => void;
   spectrumSharingEnabled?: boolean;
   onSpectrumSharingToggle?: (enabled: boolean) => void;
 }
@@ -95,7 +91,6 @@ export function Sidebar({
   visualizationToggles,
   onToggleChange,
   simulationClock,
-  queueStates,
   avgQueueLength,
   maxQueueLength,
   onTogglePlay,
@@ -104,8 +99,8 @@ export function Sidebar({
   onSetSpeed,
   onResetClock,
   lyapunovState,
-  paper41Config,
-  onPaper41ConfigChange,
+  lyapunovConfig,
+  onLyapunovConfigChange,
   spectrumSharingEnabled,
   onSpectrumSharingToggle,
 }: SidebarProps) {
@@ -143,7 +138,7 @@ export function Sidebar({
     oneweb: 'OneWeb'
   };
 
-  const methods: HandoverMethodType[] = ['rsrp', 'geometric', 'paper41', 'dqn'];
+  const methods: HandoverMethodType[] = ['lyapunov', 'rsrp', 'geometric', 'dqn'];
   const {
     text: cardTextColor,
     subtle: cardSubtleTextColor,
@@ -194,7 +189,7 @@ export function Sidebar({
         top: 0,
         left: 0,
         height: '100%',
-        width: '368px',
+        width: '340px',
         backgroundColor: 'rgba(0, 0, 0, 0.9)',
         backdropFilter: 'blur(10px)',
         borderRight: '1px solid rgba(255, 255, 255, 0.15))',
@@ -276,6 +271,123 @@ export function Sidebar({
               ))}
             </div>
           </div>
+
+          {/* 換手方法選擇 */}
+          <div>
+            <div style={{
+              fontSize: '15px',
+              color: '#ffffff',
+              fontWeight: '600',
+              marginBottom: '12px'
+            }}>
+              🔄 Handover Method
+            </div>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              {methods.map((m) => {
+                const methodInfo = HANDOVER_METHODS[m];
+                const isDisabled = m === 'dqn';
+                return (
+                  <button
+                    key={m}
+                    onClick={() => !isDisabled && onMethodChange(m)}
+                    disabled={isDisabled}
+                    style={{
+                      padding: '14px',
+                      backgroundColor: currentMethod === m
+                        ? `${methodInfo.color}20`
+                        : isDisabled
+                        ? 'rgba(255, 255, 255, 0.02)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                      border: currentMethod === m
+                        ? `2px solid ${methodInfo.color}`
+                        : '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      color: isDisabled ? '#666666' : currentMethod === m ? methodInfo.color : '#cccccc',
+                      fontSize: '14px',
+                      fontWeight: currentMethod === m ? '600' : '400',
+                      cursor: isDisabled ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.2s ease',
+                      outline: 'none',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      opacity: isDisabled ? 0.5 : 1
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                        {methodInfo.name}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: currentMethod === m ? methodInfo.color : '#999999',
+                        opacity: 0.8
+                      }}>
+                        {methodInfo.description}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 分隔線 */}
+          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+
+          {/* 方法控制：Lyapunov → Clock + Params，其他 → GlobalControls */}
+          {currentMethod === 'lyapunov' ? (
+            <>
+              <SimulationClockPanel
+                clock={simulationClock}
+                avgQueueLength={avgQueueLength}
+                maxQueueLength={maxQueueLength}
+                onTogglePlay={onTogglePlay}
+                onStepSlot={onStepSlot}
+                onStepEpoch={onStepEpoch}
+                onSetSpeed={onSetSpeed}
+                onReset={onResetClock}
+                lyapunovState={lyapunovState}
+              />
+              {lyapunovConfig && onLyapunovConfigChange && (
+                <>
+                  <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+                  <LyapunovParamsPanel
+                    config={lyapunovConfig}
+                    onConfigChange={onLyapunovConfigChange}
+                    spectrumSharingEnabled={spectrumSharingEnabled ?? true}
+                    onSpectrumSharingToggle={onSpectrumSharingToggle ?? (() => {})}
+                  />
+                </>
+              )}
+            </>
+          ) : (
+            <GlobalControls
+              timeSpeed={timeSpeed}
+              animationSpeed={animationSpeed}
+              candidateCount={candidateCount}
+              onTimeSpeedChange={onTimeSpeedChange}
+              onAnimationSpeedChange={onAnimationSpeedChange}
+              onCandidateCountChange={onCandidateCountChange}
+            />
+          )}
+
+          {/* 分隔線 */}
+          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
+
+          {/* 視覺化選項 */}
+          <VisualizationTogglePanel
+            toggles={visualizationToggles}
+            onToggleChange={onToggleChange}
+          />
+
+          {/* 分隔線 */}
+          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
 
           {/* 當前連接狀態 */}
           <div>
@@ -394,142 +506,6 @@ export function Sidebar({
             </div>
           </div>
 
-          {/* 換手方法選擇 */}
-          <div>
-            <div style={{
-              fontSize: '15px',
-              color: '#ffffff',
-              fontWeight: '600',
-              marginBottom: '12px'
-            }}>
-              🔄 Handover Method
-            </div>
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px'
-            }}>
-              {methods.map((m) => {
-                const methodInfo = HANDOVER_METHODS[m];
-                const isDisabled = m === 'dqn';
-                return (
-                  <button
-                    key={m}
-                    onClick={() => !isDisabled && onMethodChange(m)}
-                    disabled={isDisabled}
-                    style={{
-                      padding: '14px',
-                      backgroundColor: currentMethod === m
-                        ? `${methodInfo.color}20`
-                        : isDisabled
-                        ? 'rgba(255, 255, 255, 0.02)'
-                        : 'rgba(255, 255, 255, 0.05)',
-                      border: currentMethod === m
-                        ? `2px solid ${methodInfo.color}`
-                        : '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '8px',
-                      color: isDisabled ? '#666666' : currentMethod === m ? methodInfo.color : '#cccccc',
-                      fontSize: '14px',
-                      fontWeight: currentMethod === m ? '600' : '400',
-                      cursor: isDisabled ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s ease',
-                      outline: 'none',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      opacity: isDisabled ? 0.5 : 1
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: '600', marginBottom: '4px' }}>
-                        {methodInfo.name}
-                      </div>
-                      <div style={{
-                        fontSize: '12px',
-                        color: currentMethod === m ? methodInfo.color : '#999999',
-                        opacity: 0.8
-                      }}>
-                        {methodInfo.description}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 分隔線 */}
-          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
-
-          {/* 全局控制 */}
-          <GlobalControls
-            timeSpeed={timeSpeed}
-            animationSpeed={animationSpeed}
-            candidateCount={candidateCount}
-            onTimeSpeedChange={onTimeSpeedChange}
-            onAnimationSpeedChange={onAnimationSpeedChange}
-            onCandidateCountChange={onCandidateCountChange}
-          />
-
-          {/* 分隔線 */}
-          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
-
-          {/* 視覺化選項 */}
-          <VisualizationTogglePanel
-            toggles={visualizationToggles}
-            onToggleChange={onToggleChange}
-          />
-
-          {/* 分隔線 */}
-          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
-
-          {/* Paper 4-1 模擬時鐘 */}
-          <SimulationClockPanel
-            clock={simulationClock}
-            queueStates={queueStates}
-            avgQueueLength={avgQueueLength}
-            maxQueueLength={maxQueueLength}
-            onTogglePlay={onTogglePlay}
-            onStepSlot={onStepSlot}
-            onStepEpoch={onStepEpoch}
-            onSetSpeed={onSetSpeed}
-            onReset={onResetClock}
-            lyapunovState={lyapunovState}
-          />
-
-          {/* Paper 4-1 參數面板 */}
-          {paper41Config && onPaper41ConfigChange && (
-            <>
-              <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
-              <Paper41ParamsPanel
-                config={paper41Config}
-                onConfigChange={onPaper41ConfigChange}
-                spectrumSharingEnabled={spectrumSharingEnabled ?? true}
-                onSpectrumSharingToggle={onSpectrumSharingToggle ?? (() => {})}
-              />
-            </>
-          )}
-
-          {/* Paper 4-1 模擬結果圖表 (Fig. 6-9) */}
-          {lyapunovState && lyapunovState.history.length > 0 && (
-            <>
-              <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
-              <SimulationChartsPanel history={lyapunovState.history} />
-            </>
-          )}
-
-          {/* 約束驗證面板 */}
-          {lyapunovState && paper41Config && lyapunovState.history.length > 1 && (
-            <>
-              <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
-              <ConstraintValidationPanel
-                lyapunovState={lyapunovState}
-                config={paper41Config}
-              />
-            </>
-          )}
-
           {/* 分隔線 */}
           <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
 
@@ -647,15 +623,6 @@ export function Sidebar({
             </div>
           </div>
 
-          {/* 分隔線 */}
-          <div style={{ borderTop: '2px solid rgba(255, 255, 255, 0.15)' }} />
-
-          {/* 能耗效率面板 (Ntabeni et al., 2025) */}
-          <EnergyEfficiencyPanel
-            stats={stats}
-            currentMethod={currentMethod}
-            methodColor={method.color}
-          />
         </div>
       </div>
     </>

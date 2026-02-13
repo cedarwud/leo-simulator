@@ -1,2 +1,2 @@
-export { default as Starfield } from './Starfield';
-export type { StarfieldProps, Star } from './Starfield';
+export { Starfield } from './Starfield';
+export type { StarfieldProps } from './Starfield';

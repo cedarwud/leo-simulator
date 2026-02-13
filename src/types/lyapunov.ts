@@ -1,9 +1,8 @@
 /**
- * Paper 4-1 核心類型定義
+ * Lyapunov 核心類型定義
  *
- * "Beam Management in LEO Satellite Communication With Handover
- * Frequency Control and Satellite-Terrestrial Spectrum Sharing"
- * IEEE TCOMM, Vol. 73, No. 7, July 2025
+ * Beam Management in LEO Satellite Communication
+ * Lyapunov Drift-Plus-Penalty Framework
  */
 
 /**
@@ -43,7 +42,7 @@ export interface CellQueueState {
 }
 
 /**
- * Paper 4-1 正規化傳輸需求 (Table III)
+ * 正規化傳輸需求 (Table III)
  * 索引 0~19 對應 Cell 1~20
  */
 export const CELL_DEMAND_TABLE: number[] = [
@@ -53,9 +52,9 @@ export const CELL_DEMAND_TABLE: number[] = [
 ];
 
 /**
- * Paper 4-1 模擬配置
+ * Lyapunov 模擬配置
  */
-export interface Paper41Config {
+export interface LyapunovConfig {
   /** 每個 epoch 的 slot 數 (T)，預設 200 */
   slotsPerEpoch: number;
   /** 每個 slot 的時長 (ms)，預設 200 */
@@ -74,10 +73,16 @@ export interface Paper41Config {
   resourceUtilizationThreshold: number;
   /** 總到達資料率 (Gbps)，預設 6.52 (4 beams) 或 10.57 (8 beams) */
   totalArrivalRateGbps: number;
+  /** 雨衰率 (mm/h)，預設 10 */
+  rainRateMmPerH?: number;
+  /** 是否啟用陰影衰落，預設 true */
+  enableShadowFading?: boolean;
+  /** 是否啟用大氣效應，預設 true */
+  enableAtmosphericEffects?: boolean;
 }
 
 /** 預設配置 (Table II) */
-export const DEFAULT_PAPER41_CONFIG: Paper41Config = {
+export const DEFAULT_LYAPUNOV_CONFIG: LyapunovConfig = {
   slotsPerEpoch: 200,
   slotDurationMs: 200,
   beamsPerSatellite: 4,
@@ -87,6 +92,9 @@ export const DEFAULT_PAPER41_CONFIG: Paper41Config = {
   lyapunovV: 100,
   resourceUtilizationThreshold: 0.9,
   totalArrivalRateGbps: 6.52,
+  rainRateMmPerH: 10,
+  enableShadowFading: true,
+  enableAtmosphericEffects: true,
 };
 
 /** 預設時鐘初始狀態 */
@@ -138,19 +146,19 @@ export interface BaselineGroups {
 }
 
 /** Group-specific configs from paper Table II */
-export const BH_GROUP_CONFIG: Partial<Paper41Config> = {
+export const BH_GROUP_CONFIG: Partial<LyapunovConfig> = {
   beamsPerSatellite: 4,
   resourceUtilizationThreshold: 0.9,
   totalArrivalRateGbps: 6.52,
 };
 
-export const HO_GROUP_CONFIG: Partial<Paper41Config> = {
+export const HO_GROUP_CONFIG: Partial<LyapunovConfig> = {
   beamsPerSatellite: 8,
   resourceUtilizationThreshold: 0.6,
   totalArrivalRateGbps: 10.57,
 };
 
-export const SS_GROUP_CONFIG: Partial<Paper41Config> = {
+export const SS_GROUP_CONFIG: Partial<LyapunovConfig> = {
   beamsPerSatellite: 8,
   resourceUtilizationThreshold: 0.6,
   totalArrivalRateGbps: 11.871,
@@ -291,9 +299,9 @@ export type CellCapacityMap = Map<number, number>;
 /**
  * 物理層配置引用
  * 完整定義在 channelModel.ts 的 PhysicalLayerConfig
- * 此處提供 Paper41Config 的擴展欄位
+ * 此處提供 LyapunovConfig 的擴展欄位
  */
-export interface Paper41PhysicalLayer {
+export interface LyapunovPhysicalLayer {
   /** 操作頻率 (GHz)，預設 20 (Ka band) */
   frequencyGhz: number;
   /** Inter-beam INR threshold I_s^th (dB)，預設 -5 */
@@ -303,7 +311,7 @@ export interface Paper41PhysicalLayer {
 }
 
 /** 預設物理層配置 */
-export const DEFAULT_PAPER41_PHYSICAL_LAYER: Paper41PhysicalLayer = {
+export const DEFAULT_LYAPUNOV_PHYSICAL_LAYER: LyapunovPhysicalLayer = {
   frequencyGhz: 20,
   interBeamINRThresholdDb: -5,
   terrestrialCenterBandwidthMhz: 20,

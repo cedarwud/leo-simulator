@@ -1,6 +1,6 @@
 # SDD (Software Design Documents)
 
-Paper 4-1 復現計畫的系統設計文件索引。
+Lyapunov 復現計畫的系統設計文件索引。
 
 **論文**: "Beam Management in Low Earth Orbit Satellite Communication With Handover Frequency Control and Satellite-Terrestrial Spectrum Sharing"
 **來源**: IEEE Transactions on Communications, Vol. 73, No. 7, July 2025
@@ -80,7 +80,7 @@ v2 完成後，經過 10 輪 audit-verify-fix 循環，共修復 37 項問題。
 |-----|------|
 | #1 | Proposed baselines 使用真實 Algorithm 1 & Algorithm 3 (BSSA) |
 | #2 | v2 conflict graph (per-satellite vertices) 整合到主 pipeline |
-| #3 | Paper41HandoverManager Eq.32 handover penalty fallback `?? 0` |
+| #3 | LyapunovHandoverManager Eq.32 handover penalty fallback `?? 0` |
 | #4 | Fig.12 V parameter sweep 實作 (`vSweep.ts`) |
 | #5 | Eq.26 drift: `Σ(D-Q)²` before queue update, V on drift not penalty |
 | #6 | Eq.32 centering: `(x_{s,c} - 1/2) × Q_c/ΣQ` exact formula |
@@ -116,7 +116,7 @@ v2 完成後，經過 10 輪 audit-verify-fix 循環，共修復 37 項問題。
 | Fix | 內容 |
 |-----|------|
 | #28 | Group 2 `decide()` missing virtualQueues 4th arg |
-| #29 | paper41 3D handover bypasses frame-based `update()` entirely |
+| #29 | lyapunov 3D handover bypasses frame-based `update()` entirely |
 | #29b | Epoch-driven satellite selection via `epochPrimarySatPosition` (3D position matching) |
 | #30 | Sweep epochs 2000 → 20000 |
 | #31 | `terrestrialCellsPerBeam` 100 → 1620 (paper: 32400/20) |
@@ -155,7 +155,7 @@ v2 完成後，經過 10 輪 audit-verify-fix 循環，共修復 37 項問題。
 | #49 | Fig.10 FSPL 修正 `32.4`(MHz) → `computeFSPL()` (92.45+, GHz)，修復 60 dB 誤差 |
 | #50 | 移除 `maxInterferenceRatio` 死碼 |
 | #51 | UI 文字 `5,000` → `32,400` Monte Carlo samples |
-| #52 | `useEffect` 依賴擴展至所有 Paper41Config 欄位（參數熱更新） |
+| #52 | `useEffect` 依賴擴展至所有 LyapunovConfig 欄位（參數熱更新） |
 
 ---
 
@@ -180,7 +180,7 @@ src/features/beam-hopping/algorithms/
 
 ```
 useLyapunovOptimizer (hook)
-  ├── Algorithm 1: Paper41HandoverManager.decide()
+  ├── Algorithm 1: LyapunovHandoverManager.decide()
   ├── Algorithm 2: solveWMIS() via conflictGraph
   ├── Algorithm 3: decideSpectrumSharing() + applySpectrumSharingGain()
   ├── Baselines: runBaselineEpoch() (3 groups × 4 each)
@@ -207,7 +207,7 @@ useLyapunovOptimizer (hook)
 ## Remaining Trade-offs (not bugs)
 
 1. **3D satellite matching**: Visual constellation (timeseries JSON) uses position-based matching to algorithmic constellation (Walker-Delta), not direct ID mapping
-2. **`Paper41HandoverManager.update()`**: Marked `@deprecated` — dead code for paper41 mode, retained for other handover method interfaces
+2. **`LyapunovHandoverManager.update()`**: Marked `@deprecated` — dead code for lyapunov mode, retained for other handover method interfaces
 3. **32400 terrestrial cells**: Monte Carlo sampling (1620/beam), validated via stability analysis (`spectrumSharing.test.ts: sampling sensitivity`)
 4. **z 決策缺 slot 維度**: BSSA 每 epoch 決策一次（非 per-slot），干擾條件在 epoch 內近似不變
 5. **Terrestrial cluster 靜態**: 一次生成不逐 epoch 更新負載（論文描述逐 epoch 預測但細節不足以完整實作）

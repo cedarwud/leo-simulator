@@ -1,4 +1,3 @@
-import React from 'react';
 import { HandoverMethodType, HandoverStats } from '@/types/handover-method';
 import { ENERGY_CONFIG, calculateEnergySavings, ENERGY_ACADEMIC_REFERENCES } from '@/config/energy.config';
 

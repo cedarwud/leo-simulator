@@ -1,73 +1,35 @@
-import { useState, useEffect, useRef } from 'react';
-
-export interface Star {
-  left: number;
-  top: number;
-  size: number;
-  baseOpacity: number;
-  phase: number;
-  speed: number;
-  animOpacity: number;
-}
+import { useMemo, type CSSProperties } from 'react';
 
 export interface StarfieldProps {
   starCount?: number;
-  style?: React.CSSProperties;
-  starStyle?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
-function createStars(starCount: number): Star[] {
-  return Array.from({ length: starCount }, () => {
-    const baseOpacity = Math.random() * 0.7 + 0.3;
-    return {
-      left: Math.random() * 100,
-      top: Math.random() * 100,
-      size: Math.random() * 2 + 1,
-      baseOpacity,
-      phase: Math.random() * Math.PI * 2,
-      speed: Math.random() * 1.0 + 1.0,
-      animOpacity: baseOpacity,
-    };
-  });
+interface StarData {
+  left: number;
+  top: number;
+  size: number;
+  opacity: number;
+  duration: number;
+  delay: number;
 }
 
-const Starfield: React.FC<StarfieldProps> = ({
+function generateStars(count: number): StarData[] {
+  return Array.from({ length: count }, () => ({
+    left: Math.random() * 100,
+    top: Math.random() * 100,
+    size: Math.random() * 2 + 1,
+    opacity: Math.random() * 0.7 + 0.3,
+    duration: Math.random() * 2 + 2,   // 2–4s cycle
+    delay: Math.random() * -4,          // stagger start
+  }));
+}
+
+export function Starfield({
   starCount = 180,
   style = {},
-  starStyle = {},
-}) => {
-  const [starAnim, setStarAnim] = useState<Star[]>(() => createStars(starCount));
-
-  const frameRef = useRef(0);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-
-    const updateStars = () => {
-      frameRef.current++;
-      setStarAnim((prev) =>
-        prev.map((star) => {
-          const t = frameRef.current / 30;
-          const flicker = Math.sin(t * star.speed + star.phase) * 0.5;
-          let opacity = star.baseOpacity + flicker;
-          opacity = Math.max(0.15, Math.min(1, opacity));
-          return { ...star, animOpacity: opacity };
-        })
-      );
-    };
-
-    const interval = setInterval(updateStars, 120);
-
-    return () => {
-      mountedRef.current = false;
-      clearInterval(interval);
-    };
-  }, []);
-
-  useEffect(() => {
-    setStarAnim(createStars(starCount));
-  }, [starCount]);
+}: StarfieldProps) {
+  const stars = useMemo(() => generateStars(starCount), [starCount]);
 
   return (
     <div
@@ -79,9 +41,10 @@ const Starfield: React.FC<StarfieldProps> = ({
         ...style,
       }}
     >
-      {starAnim.map((star, i) => (
+      {stars.map((star, i) => (
         <div
           key={i}
+          className="starfield-star"
           style={{
             position: 'absolute',
             left: `${star.left}%`,
@@ -90,15 +53,13 @@ const Starfield: React.FC<StarfieldProps> = ({
             height: `${star.size}px`,
             borderRadius: '50%',
             background: 'white',
-            opacity: star.animOpacity,
+            opacity: star.opacity,
             filter: 'blur(0.5px)',
-            transition: 'opacity 0.2s linear',
-            ...starStyle,
+            animationDuration: `${star.duration}s`,
+            animationDelay: `${star.delay}s`,
           }}
         />
       ))}
     </div>
   );
-};
-
-export default Starfield;
+}

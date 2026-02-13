@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { HandoverStats } from '@/types/handover-method';
 import { DecisionFactorCard } from './DecisionFactorCard';
 import { SignalQualityScore } from './SignalQualityScore';

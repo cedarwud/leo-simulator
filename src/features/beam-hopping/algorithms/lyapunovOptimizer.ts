@@ -1,5 +1,5 @@
 /**
- * Lyapunov Optimization Framework — Paper 4-1, Section III
+ * Lyapunov Optimization Framework — Lyapunov Framework, Section III
  *
  * 將 Algorithm 1 (換手) 和 Algorithm 2 (beam hopping) 整合到
  * Lyapunov drift-plus-penalty 框架下，實現長期最佳化。
@@ -23,12 +23,12 @@ import {
   VirtualQueue,
   LyapunovState,
   EpochSnapshot,
-  Paper41Config,
-  DEFAULT_PAPER41_CONFIG,
+  LyapunovConfig,
+  DEFAULT_LYAPUNOV_CONFIG,
   TerrestrialCluster,
   SpectrumSharingConfig,
   DEFAULT_SPECTRUM_SHARING_CONFIG,
-} from '@/types/paper41';
+} from '@/types/lyapunov';
 import { ConflictGraph } from './conflictGraph';
 import { solveWMIS, BeamHoppingDecision } from './wmisScheduler';
 import { decideSpectrumSharing, applySpectrumSharingGain } from './spectrumSharing';
@@ -155,7 +155,7 @@ export function runEpochDecision(
   prevState: LyapunovState,
   conflictGraph: ConflictGraph,
   handoverIndicators: Map<number, boolean>,
-  config: Paper41Config = DEFAULT_PAPER41_CONFIG,
+  config: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
   terrestrialClusters?: TerrestrialCluster[],
   ssConfig?: SpectrumSharingConfig,
   cellCapacityMap?: CellCapacityMap,

@@ -87,7 +87,7 @@ function binarySSA(
   dim: number,
   queueStates: CellQueueState[],       // Q'_{c,f} from Algorithm 2
   clusters: TerrestrialCluster[],
-  paperConfig: Paper41Config,
+  paperConfig: LyapunovConfig,
   ssConfig: SpectrumSharingConfig,
   physConfig: PhysicalLayerConfig,
   bssaConfig: BSSAConfig,
@@ -127,7 +127,7 @@ function computeFitness(
   solution: number[],
   queueStates: CellQueueState[],    // Q'_{c,f}
   clusters: TerrestrialCluster[],
-  paperConfig: Paper41Config,
+  paperConfig: LyapunovConfig,
   ssConfig: SpectrumSharingConfig,
 ): number {
   const T = paperConfig.slotsPerEpoch;

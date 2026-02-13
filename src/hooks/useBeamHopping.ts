@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { EarthFixedCell } from '@/features/beam-hopping/components/EarthFixedCells';
 import { buildConflictGraph, ConflictGraph } from '@/features/beam-hopping/algorithms/conflictGraph';
 import { solveWMIS, BeamHoppingDecision } from '@/features/beam-hopping/algorithms/wmisScheduler';
-import { SimulationClock, CellQueueState, Paper41Config, DEFAULT_PAPER41_CONFIG } from '@/types/paper41';
+import { SimulationClock, CellQueueState, LyapunovConfig, DEFAULT_LYAPUNOV_CONFIG } from '@/types/lyapunov';
 
 export interface BeamHoppingState {
   /** 當前 slot 的 beam → cell 分配 */
@@ -26,14 +26,14 @@ export interface BeamHoppingState {
  * @param cells Earth-Fixed Cells
  * @param clock 模擬時鐘狀態
  * @param queueStates Cell queue 狀態
- * @param config Paper 4-1 配置
+ * @param config Lyapunov 配置
  * @param enabled 是否啟用
  */
 export function useBeamHopping(
   cells: EarthFixedCell[],
   clock: SimulationClock,
   queueStates: CellQueueState[],
-  config: Paper41Config = DEFAULT_PAPER41_CONFIG,
+  config: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
   enabled: boolean = true,
 ): BeamHoppingState {
   // 建構 Conflict Graph（只在 cells 或 beam 數量改變時重建）

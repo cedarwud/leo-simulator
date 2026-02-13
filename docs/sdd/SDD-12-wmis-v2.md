@@ -59,7 +59,7 @@ Note: Q_c^{f,t} and D_c^{f,t} are **per-slot** values that update as vertices ar
 export function solveWMIS(
   graph: ConflictGraph,
   queueStates: CellQueueState[],
-  config: Paper41Config,
+  config: LyapunovConfig,
 ): BeamHoppingDecision {
   // Build queue map
   const queueMap = new Map<number, CellQueueState>();

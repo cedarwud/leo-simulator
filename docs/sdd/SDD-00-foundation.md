@@ -2,7 +2,7 @@
 
 ## 1. 目的
 
-建立 Paper 4-1 的時間與資料基礎架構，為後續所有演算法提供運行環境。
+建立 Lyapunov 的時間與資料基礎架構，為後續所有演算法提供運行環境。
 
 ## 2. 論文對應
 
@@ -27,7 +27,7 @@ Epoch f+1
 **新增資料結構**:
 
 ```typescript
-// src/types/paper41.ts
+// src/types/lyapunov.ts
 interface SimulationClock {
   currentEpoch: number;        // 當前 epoch 編號
   currentSlot: number;         // 當前 slot (1-200)
@@ -87,7 +87,7 @@ D_c^f = Σ (slots served) × W_c × T_slot × log2(1 + SNR_c)
 
 | 檔案 | 變更 |
 |---|---|
-| `src/types/paper41.ts` | 新建：SimulationClock, CellQueue, Paper41Config |
+| `src/types/lyapunov.ts` | 新建：SimulationClock, CellQueue, LyapunovConfig |
 | `src/features/beam-hopping/components/EarthFixedCells.tsx` | 修改：queue 更新邏輯 |
 | `src/components/ui/sidebar/` | 新增：epoch/slot 顯示、播放控制 |
 | `src/components/scene/MainScene.tsx` | 修改：整合 SimulationClock |

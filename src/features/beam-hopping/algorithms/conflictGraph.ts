@@ -1,5 +1,5 @@
 /**
- * Conflict Graph v2 — Paper 4-1, Section IV-C
+ * Conflict Graph v2 — Section IV-C
  *
  * Each epoch builds conflict graph G = (V, E) for WMIS beam hopping scheduling.
  *

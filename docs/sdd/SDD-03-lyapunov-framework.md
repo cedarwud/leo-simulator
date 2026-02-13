@@ -60,7 +60,7 @@ Epoch f:
 | 檔案 | 變更 |
 |---|---|
 | `src/features/beam-hopping/algorithms/lyapunovOptimizer.ts` | 新建：Lyapunov 框架 |
-| `src/types/paper41.ts` | 修改：VirtualQueue, LyapunovState |
+| `src/types/lyapunov.ts` | 修改：VirtualQueue, LyapunovState |
 | `src/components/scene/MainScene.tsx` | 修改：per-epoch 決策循環 |
 
 ## 5. 前置需求

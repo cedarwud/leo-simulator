@@ -4,8 +4,7 @@
  * 控制場景中可選視覺化功能的開關
  */
 
-import React from 'react';
-import { Grid3X3, Radio, LucideIcon } from 'lucide-react';
+import { Grid3X3, Radio, GitBranch, LucideIcon } from 'lucide-react';
 import type { VisualizationToggles } from '@/types/unified-scene';
 
 interface VisualizationTogglePanelProps {
@@ -129,6 +128,14 @@ export function VisualizationTogglePanel({
           label="Satellite Beams"
           icon={Radio}
           description="Beam-to-cell connections"
+        />
+
+        <ToggleSwitch
+          enabled={toggles.showConflictEdges}
+          onChange={(value) => onToggleChange('showConflictEdges', value)}
+          label="Conflict Edges"
+          icon={GitBranch}
+          description="Inter-beam interference graph"
         />
       </div>
 

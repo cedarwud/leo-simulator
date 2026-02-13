@@ -1,11 +1,10 @@
-import React, { useRef, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
 import * as THREE from 'three';
 
 export function NTPUScene() {
   const { scene } = useGLTF(NTPU_CONFIG.scene.modelPath);
-  const groupRef = useRef<THREE.Group>(null);
 
   // Process scene materials, same as ntn-stack
   const processedScene = useMemo(() => {
@@ -22,10 +21,12 @@ export function NTPUScene() {
           if (Array.isArray(mesh.material)) {
             mesh.material = mesh.material.map((mat) => {
               if (mat instanceof THREE.MeshBasicMaterial) {
-                return new THREE.MeshStandardMaterial({
+                const replacement = new THREE.MeshStandardMaterial({
                   color: mat.color,
                   map: mat.map,
                 });
+                mat.dispose();
+                return replacement;
               }
               return mat;
             });
@@ -35,6 +36,7 @@ export function NTPUScene() {
               color: basicMat.color,
               map: basicMat.map,
             });
+            basicMat.dispose();
           }
         }
       }
@@ -44,7 +46,7 @@ export function NTPUScene() {
   }, [scene]);
 
   return (
-    <group ref={groupRef} position={NTPU_CONFIG.scene.position}>
+    <group position={NTPU_CONFIG.scene.position}>
       <primitive object={processedScene} scale={NTPU_CONFIG.scene.scale} />
     </group>
   );

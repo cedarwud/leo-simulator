@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { memo, forwardRef } from 'react';
 import { Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -13,7 +13,7 @@ interface SatelliteLabelProps {
  * 衛星標籤組件
  * 顯示星座名稱和衛星編號
  */
-export const SatelliteLabel = React.memo(forwardRef<THREE.Group, SatelliteLabelProps>(({
+export const SatelliteLabel = memo(forwardRef<THREE.Group, SatelliteLabelProps>(({
   satelliteId,
   constellation = 'unknown',
   isCurrentSatellite = false,

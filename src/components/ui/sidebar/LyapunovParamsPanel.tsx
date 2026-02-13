@@ -1,9 +1,8 @@
-import React from 'react';
-import { Paper41Config } from '@/types/paper41';
+import { LyapunovConfig } from '@/types/lyapunov';
 
-interface Paper41ParamsPanelProps {
-  config: Paper41Config;
-  onConfigChange: (config: Paper41Config) => void;
+interface LyapunovParamsPanelProps {
+  config: LyapunovConfig;
+  onConfigChange: (config: LyapunovConfig) => void;
   spectrumSharingEnabled: boolean;
   onSpectrumSharingToggle: (enabled: boolean) => void;
 }
@@ -58,13 +57,13 @@ function ParamSlider({
   );
 }
 
-export function Paper41ParamsPanel({
+export function LyapunovParamsPanel({
   config,
   onConfigChange,
   spectrumSharingEnabled,
   onSpectrumSharingToggle,
-}: Paper41ParamsPanelProps) {
-  const update = (partial: Partial<Paper41Config>) => {
+}: LyapunovParamsPanelProps) {
+  const update = (partial: Partial<LyapunovConfig>) => {
     onConfigChange({ ...config, ...partial });
   };
 
@@ -76,7 +75,7 @@ export function Paper41ParamsPanel({
         fontWeight: '600',
         marginBottom: '12px',
       }}>
-        Paper 4-1 Parameters
+        Lyapunov Parameters
       </div>
 
       {/* Lyapunov Parameters */}

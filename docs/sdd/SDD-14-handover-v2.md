@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-Fix two bugs in the Paper 4-1 handover manager (Algorithm 1):
+Fix two bugs in the Lyapunov handover manager (Algorithm 1):
 
 1. **Penalty formula**: Use `M_{c,f} × m_{c,f}` (virtual queue × handover indicator) instead of `+= 1`
 2. **Entropy weights**: Compute weights dynamically from data instead of fixed `w_load=0.4, w_elev=0.35, w_rst=0.25`
@@ -158,7 +158,7 @@ function computeEntropyWeights(attributeMatrix: number[][]): number[] {
 
 ### 3.4 Pass Virtual Queues to Manager
 
-The `Paper41HandoverManager.decide()` method needs access to virtual queues for the penalty calculation. Update the `decide()` signature:
+The `LyapunovHandoverManager.decide()` method needs access to virtual queues for the penalty calculation. Update the `decide()` signature:
 
 ```typescript
 decide(
@@ -166,14 +166,14 @@ decide(
   satellites: SatelliteInfo[],
   queueStates: CellQueueState[],
   virtualQueues?: VirtualQueue[],  // NEW
-): Paper41HandoverResult;
+): LyapunovHandoverResult;
 ```
 
 ## 4. Affected Files
 
 | File | Change |
 |------|--------|
-| `src/utils/satellite/Paper41HandoverManager.ts` | Fix penalty + entropy weights |
+| `src/utils/satellite/LyapunovHandoverManager.ts` | Fix penalty + entropy weights |
 | `src/hooks/useLyapunovOptimizer.ts` | Pass virtualQueues to decide() |
 
 ## 5. Verification Criteria

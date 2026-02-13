@@ -1,11 +1,10 @@
-// src/components/scene/CameraSetup.tsx
-import React, { useEffect } from 'react';
+import { useEffect, type RefObject } from 'react';
 import { useThree } from '@react-three/fiber';
 import { NTPU_CONFIG } from '@/config/ntpu.config';
-import { OrbitControls as OrbitControlsImpl } from 'three-stdlib'; // For type inference
+import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 
 interface CameraSetupProps {
-  controlsRef: React.RefObject<OrbitControlsImpl | null>;
+  controlsRef: RefObject<OrbitControlsImpl | null>;
 }
 
 export function CameraSetup({ controlsRef }: CameraSetupProps) {
@@ -13,16 +12,18 @@ export function CameraSetup({ controlsRef }: CameraSetupProps) {
 
   useEffect(() => {
     if (controlsRef.current) {
-      const { initialPosition, target } = NTPU_CONFIG.camera;
-      camera.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
-      
-      // Set OrbitControls target from config to shift framing
-      controlsRef.current.target.copy(target);
-      controlsRef.current.update(); // Update controls to reflect changes
-      
-      camera.lookAt(target); // Ensure camera looks at configured target
-    }
-  }, [camera, controlsRef]); // Dependencies: run once when camera/gl context is ready
+      const [px, py, pz] = NTPU_CONFIG.camera.initialPosition;
+      const [tx, ty, tz] = NTPU_CONFIG.camera.target;
 
-  return null; // This component renders nothing itself
+      camera.position.set(px, py, pz);
+
+      // Set OrbitControls target from config to shift framing
+      controlsRef.current.target.set(tx, ty, tz);
+      controlsRef.current.update();
+
+      camera.lookAt(tx, ty, tz);
+    }
+  }, [camera, controlsRef]);
+
+  return null;
 }

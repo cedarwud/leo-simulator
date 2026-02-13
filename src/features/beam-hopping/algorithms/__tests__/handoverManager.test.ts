@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { Paper41HandoverManager } from '@/utils/satellite/Paper41HandoverManager';
-import type { SatelliteInfo } from '@/utils/satellite/Paper41HandoverManager';
-import { DEFAULT_PAPER41_CONFIG } from '@/types/paper41';
-import type { CellQueueState, VirtualQueue } from '@/types/paper41';
+import { LyapunovHandoverManager } from '@/utils/satellite/LyapunovHandoverManager';
+import type { SatelliteInfo } from '@/utils/satellite/LyapunovHandoverManager';
+import { DEFAULT_LYAPUNOV_CONFIG } from '@/types/lyapunov';
+import type { CellQueueState, VirtualQueue } from '@/types/lyapunov';
 import type { EarthFixedCell } from '@/features/beam-hopping/components/EarthFixedCells';
 
 function mockCell(id: number, x: number = 0, z: number = 0): EarthFixedCell {
@@ -57,12 +57,12 @@ function makeVirtualQueues(cells: EarthFixedCell[], value: number = 0): VirtualQ
   return cells.map(c => ({ cellId: c.id, value }));
 }
 
-describe('Paper41HandoverManager', () => {
+describe('LyapunovHandoverManager', () => {
   const cells = Array.from({ length: 4 }, (_, i) => mockCell(i + 1, i * 50));
 
   describe('decide() basics', () => {
     it('should assign all cells on first epoch', () => {
-      const manager = new Paper41HandoverManager(DEFAULT_PAPER41_CONFIG);
+      const manager = new LyapunovHandoverManager(DEFAULT_LYAPUNOV_CONFIG);
       const sats = [mockSatellite('s1', cells, 60), mockSatellite('s2', cells, 55)];
       const queues = makeQueues(cells);
 
@@ -74,7 +74,7 @@ describe('Paper41HandoverManager', () => {
     });
 
     it('should return zero handovers when assignments unchanged', () => {
-      const manager = new Paper41HandoverManager(DEFAULT_PAPER41_CONFIG);
+      const manager = new LyapunovHandoverManager(DEFAULT_LYAPUNOV_CONFIG);
       const sats = [mockSatellite('s1', cells, 60)];
       const queues = makeQueues(cells);
 
@@ -87,7 +87,7 @@ describe('Paper41HandoverManager', () => {
     });
 
     it('should handle empty satellites gracefully', () => {
-      const manager = new Paper41HandoverManager(DEFAULT_PAPER41_CONFIG);
+      const manager = new LyapunovHandoverManager(DEFAULT_LYAPUNOV_CONFIG);
       const result = manager.decide(cells, [], makeQueues(cells));
       expect(result.assignments.length).toBe(0);
       expect(result.handoverCount).toBe(0);
@@ -96,7 +96,7 @@ describe('Paper41HandoverManager', () => {
 
   describe('topology change detection', () => {
     it('should trigger handover when satellite disappears', () => {
-      const manager = new Paper41HandoverManager(DEFAULT_PAPER41_CONFIG);
+      const manager = new LyapunovHandoverManager(DEFAULT_LYAPUNOV_CONFIG);
       const sat1 = mockSatellite('s1', cells, 60);
       const sat2 = mockSatellite('s2', cells, 55);
       const queues = makeQueues(cells);
@@ -114,7 +114,7 @@ describe('Paper41HandoverManager', () => {
     });
 
     it('should trigger handover when elevation drops below minimum', () => {
-      const manager = new Paper41HandoverManager(DEFAULT_PAPER41_CONFIG);
+      const manager = new LyapunovHandoverManager(DEFAULT_LYAPUNOV_CONFIG);
       const sat1 = mockSatellite('s1', cells, 60);
       const queues = makeQueues(cells);
 
@@ -135,8 +135,8 @@ describe('Paper41HandoverManager', () => {
       // With σ₀ = 0.9 (default for BH group) and 4 cells / (2 sats × 4 beams) = 0.5 < 0.9
       // BUT we need σ >= σ₀ to NOT trigger.
       // Use many cells relative to beam capacity to get high utilization.
-      const config = { ...DEFAULT_PAPER41_CONFIG, resourceUtilizationThreshold: 0.1 };
-      const manager = new Paper41HandoverManager(config);
+      const config = { ...DEFAULT_LYAPUNOV_CONFIG, resourceUtilizationThreshold: 0.1 };
+      const manager = new LyapunovHandoverManager(config);
       const sats = [mockSatellite('s1', cells, 60)];
       const queues = makeQueues(cells);
 
@@ -151,7 +151,7 @@ describe('Paper41HandoverManager', () => {
     });
 
     it('should trigger when σ == 0 (no assignments)', () => {
-      const manager = new Paper41HandoverManager(DEFAULT_PAPER41_CONFIG);
+      const manager = new LyapunovHandoverManager(DEFAULT_LYAPUNOV_CONFIG);
       const sats = [mockSatellite('s1', cells, 60)];
       const queues = makeQueues(cells);
 
@@ -166,11 +166,11 @@ describe('Paper41HandoverManager', () => {
       // = 200 × 0.2 × log₂(1+10^1.2) × 200 ≈ 32,560 Mbits
       // So we need per-satellite queue sum > 32,560 Mbits
       const config = {
-        ...DEFAULT_PAPER41_CONFIG,
+        ...DEFAULT_LYAPUNOV_CONFIG,
         resourceUtilizationThreshold: 0.9, // σ₀ = 0.9
         beamsPerSatellite: 8, // more beams → lower σ
       };
-      const manager = new Paper41HandoverManager(config);
+      const manager = new LyapunovHandoverManager(config);
       const sats = [
         mockSatellite('s1', cells, 60),
         mockSatellite('s2', cells, 55),
@@ -191,11 +191,11 @@ describe('Paper41HandoverManager', () => {
 
     it('should NOT trigger when σ < σ₀ but min queue load <= C_s', () => {
       const config = {
-        ...DEFAULT_PAPER41_CONFIG,
+        ...DEFAULT_LYAPUNOV_CONFIG,
         resourceUtilizationThreshold: 0.9,
         beamsPerSatellite: 8,
       };
-      const manager = new Paper41HandoverManager(config);
+      const manager = new LyapunovHandoverManager(config);
       const sats = [
         mockSatellite('s1', cells, 60),
         mockSatellite('s2', cells, 55),
@@ -219,10 +219,10 @@ describe('Paper41HandoverManager', () => {
   describe('swap matching gating', () => {
     it('should not change assignments when global condition is not met', () => {
       const config = {
-        ...DEFAULT_PAPER41_CONFIG,
+        ...DEFAULT_LYAPUNOV_CONFIG,
         resourceUtilizationThreshold: 0.1, // Low threshold → σ always >= σ₀
       };
-      const manager = new Paper41HandoverManager(config);
+      const manager = new LyapunovHandoverManager(config);
       const sats = [
         mockSatellite('s1', cells, 60),
         mockSatellite('s2', cells, 55),
@@ -249,11 +249,11 @@ describe('Paper41HandoverManager', () => {
     it('should still produce valid assignments with random adjust', () => {
       // Use conditions that trigger swap matching (including random adjust)
       const config = {
-        ...DEFAULT_PAPER41_CONFIG,
+        ...DEFAULT_LYAPUNOV_CONFIG,
         resourceUtilizationThreshold: 0.9,
         beamsPerSatellite: 8,
       };
-      const manager = new Paper41HandoverManager(config);
+      const manager = new LyapunovHandoverManager(config);
       const sats = [
         mockSatellite('s1', cells, 60),
         mockSatellite('s2', cells, 55),
@@ -274,7 +274,7 @@ describe('Paper41HandoverManager', () => {
 
   describe('virtual queue integration', () => {
     it('should use virtual queues in objective calculation', () => {
-      const manager = new Paper41HandoverManager(DEFAULT_PAPER41_CONFIG);
+      const manager = new LyapunovHandoverManager(DEFAULT_LYAPUNOV_CONFIG);
       const sats = [
         mockSatellite('s1', cells, 60),
         mockSatellite('s2', cells, 55),

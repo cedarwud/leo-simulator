@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { HandoverStats } from '@/types/handover-method';
 import { DualSemiCircleGauge } from '../SemiCircleGauge';
 import { A4EventMonitor } from './A4EventMonitor';

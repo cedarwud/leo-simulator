@@ -1,8 +1,7 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { SatelliteHandoverPage } from './pages';
 
-function App() {
+export function App() {
   return (
     <BrowserRouter>
       <Routes>
@@ -12,4 +11,3 @@ function App() {
   );
 }
 
-export default App;

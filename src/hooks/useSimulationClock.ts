@@ -2,22 +2,22 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   SimulationClock,
   CellQueueState,
-  Paper41Config,
+  LyapunovConfig,
   CELL_DEMAND_TABLE,
   INITIAL_CLOCK,
-  DEFAULT_PAPER41_CONFIG,
-} from '@/types/paper41';
+  DEFAULT_LYAPUNOV_CONFIG,
+} from '@/types/lyapunov';
 import { EarthFixedCell } from '@/features/beam-hopping/components/EarthFixedCells';
 
 /**
- * Paper 4-1 模擬時鐘 Hook
+ * Lyapunov 模擬時鐘 Hook
  *
  * 管理 epoch/slot 時間推進與 Data Queue 動態更新
  * Equation 1: Q_c^{f+1} = max(Q_c^f - D_c^f, 0) + α_c^f
  */
 export function useSimulationClock(
   cells: EarthFixedCell[],
-  config: Paper41Config = DEFAULT_PAPER41_CONFIG,
+  config: LyapunovConfig = DEFAULT_LYAPUNOV_CONFIG,
 ) {
   const [clock, setClock] = useState<SimulationClock>(INITIAL_CLOCK);
   const [queueStates, setQueueStates] = useState<CellQueueState[]>(() =>
@@ -128,7 +128,7 @@ export function useSimulationClock(
 
 function initQueueStates(
   cells: EarthFixedCell[],
-  config: Paper41Config,
+  config: LyapunovConfig,
 ): CellQueueState[] {
   return cells.map((cell, index) => ({
     cellId: cell.id,
@@ -143,7 +143,7 @@ function initQueueStates(
  * 計算每個 cell 的到達資料量 (Mbits/epoch)
  * 基於 Table III 的正規化需求分佈
  */
-function computeArrivalRate(cellIndex: number, config: Paper41Config): number {
+function computeArrivalRate(cellIndex: number, config: LyapunovConfig): number {
   const demand = CELL_DEMAND_TABLE[cellIndex] ?? 0.05;
   // 總到達率 × 正規化需求 × epoch 時長
   // totalArrivalRateGbps 是所有 cells 的總和
@@ -158,7 +158,7 @@ function computeArrivalRate(cellIndex: number, config: Paper41Config): number {
 function updateQueuesPerSlot(
   queues: CellQueueState[],
   cells: EarthFixedCell[],
-  config: Paper41Config,
+  config: LyapunovConfig,
 ): CellQueueState[] {
   return queues.map(q => {
     const cell = cells.find(c => c.id === q.cellId);
@@ -190,7 +190,7 @@ function updateQueuesPerSlot(
 function updateQueuesEndOfEpoch(
   queues: CellQueueState[],
   cells: EarthFixedCell[],
-  config: Paper41Config,
+  config: LyapunovConfig,
 ): CellQueueState[] {
   return queues.map((q, index) => {
     const newQueueLength = Math.max(q.queueLength - q.servedData, 0) + q.arrivalData;

@@ -19,18 +19,18 @@
 import {
   CellQueueState,
   CellCapacityMap,
-  Paper41Config,
+  LyapunovConfig,
   BaselineMetrics,
   BaselineGroups,
   TerrestrialCluster,
   VirtualQueue,
-  DEFAULT_PAPER41_CONFIG,
+  DEFAULT_LYAPUNOV_CONFIG,
   BH_GROUP_CONFIG,
   HO_GROUP_CONFIG,
   SS_GROUP_CONFIG,
   DEFAULT_SPECTRUM_SHARING_CONFIG,
-  DEFAULT_PAPER41_PHYSICAL_LAYER,
-} from '@/types/paper41';
+  DEFAULT_LYAPUNOV_PHYSICAL_LAYER,
+} from '@/types/lyapunov';
 import { ConflictGraph } from './conflictGraph';
 import { solveWMIS, solveWMIS_MonteCarlo } from './wmisScheduler';
 import {
@@ -40,7 +40,7 @@ import {
   computeAntennaGain,
   DEFAULT_PHYSICAL_LAYER_CONFIG,
 } from './channelModel';
-import { Paper41HandoverManager, SatelliteInfo } from '@/utils/satellite/Paper41HandoverManager';
+import { LyapunovHandoverManager, SatelliteInfo } from '@/utils/satellite/LyapunovHandoverManager';
 import { EarthFixedCell, SCENE_TO_KM_SCALE } from '@/features/beam-hopping/components/EarthFixedCells';
 import { buildConflictGraph, SatelliteCellAssignment, ConflictPhysicalConfig } from './conflictGraph';
 import { decideSpectrumSharing } from './spectrumSharing';
@@ -75,10 +75,10 @@ export interface BaselineState {
     ga: SingleBaselineState;
     bwo: SingleBaselineState;
   };
-  /** Paper41HandoverManager for proposed handover (Algorithm 1) — per group */
-  _hoManagerBH?: Paper41HandoverManager;
-  _hoManagerHO?: Paper41HandoverManager;
-  _hoManagerSS?: Paper41HandoverManager;
+  /** LyapunovHandoverManager for proposed handover (Algorithm 1) — per group */
+  _hoManagerBH?: LyapunovHandoverManager;
+  _hoManagerHO?: LyapunovHandoverManager;
+  _hoManagerSS?: LyapunovHandoverManager;
 }
 
 export function initBaselineState(cellIds: number[]): BaselineState {
@@ -108,19 +108,19 @@ const DEMAND_TABLE = [
   0.0636, 0.0740, 0.0312, 0.0844, 0.0428, 0.0740,
 ];
 
-function computeDemand(index: number, config: Paper41Config): number {
+function computeDemand(index: number, config: LyapunovConfig): number {
   const ratio = index < 20 ? DEMAND_TABLE[index] : 0.05;
   return config.totalArrivalRateGbps * 1000 * ratio *
     (config.slotsPerEpoch * config.slotDurationMs / 1000);
 }
 
-function capPerSlot(config: Paper41Config): number {
+function capPerSlot(config: LyapunovConfig): number {
   const snrLin = Math.pow(10, config.targetSnrDb / 10);
   return (config.satelliteBandwidthMhz / config.beamsPerSatellite) *
     (config.slotDurationMs / 1000) * Math.log2(1 + snrLin);
 }
 
-function mergeConfig(base: Paper41Config, group: Partial<Paper41Config>): Paper41Config {
+function mergeConfig(base: LyapunovConfig, group: Partial<LyapunovConfig>): LyapunovConfig {
   return { ...base, ...group };
 }
 
@@ -129,7 +129,7 @@ function finishEpoch(
   state: SingleBaselineState,
   simQueues: CellQueueState[],
   currentAssignments: Map<number, string>,
-  config: Paper41Config,
+  config: LyapunovConfig,
   epoch: number,
   extraServed?: Map<number, number>,
 ): { metrics: BaselineMetrics; updatedState: SingleBaselineState } {
@@ -211,7 +211,7 @@ function buildCapacityMap(
   hoAssignments: Map<number, string>,
   cells: EarthFixedCell[],
   satellites: SatelliteInfo[],
-  config: Paper41Config,
+  config: LyapunovConfig,
 ): CellCapacityMap | undefined {
   const assignments: Array<{ cellId: number; elevationDeg: number }> = [];
   for (const cell of cells) {
@@ -256,7 +256,7 @@ function buildSatAssignments(
 }
 
 /** Build ConflictPhysicalConfig for Eq.8 interference-based edges */
-function buildPhysConfig(satellites: SatelliteInfo[], config: Paper41Config): ConflictPhysicalConfig {
+function buildPhysConfig(satellites: SatelliteInfo[], config: LyapunovConfig): ConflictPhysicalConfig {
   return {
     physical: DEFAULT_PHYSICAL_LAYER_CONFIG,
     numVisibleSats: satellites.length,
@@ -269,7 +269,7 @@ function buildPhysConfig(satellites: SatelliteInfo[], config: Paper41Config): Co
 function runWMIS(
   simQueues: CellQueueState[],
   graph: ConflictGraph,
-  config: Paper41Config,
+  config: LyapunovConfig,
   cellCapacityMap?: CellCapacityMap,
 ): void {
   const cap = capPerSlot(config);
@@ -294,7 +294,7 @@ function runWMIS(
 /** Greedy BH: allocate beams to B cells with largest queue each slot */
 function greedyBeamHopping(
   simQueues: CellQueueState[],
-  config: Paper41Config,
+  config: LyapunovConfig,
 ): void {
   const cap = capPerSlot(config);
   for (let slot = 0; slot < config.slotsPerEpoch; slot++) {
@@ -313,7 +313,7 @@ function greedyBeamHopping(
 /** Swap Matching BH: greedy init + pairwise beam swaps to improve total weight */
 function swapMatchBeamHopping(
   simQueues: CellQueueState[],
-  config: Paper41Config,
+  config: LyapunovConfig,
 ): void {
   const cap = capPerSlot(config);
   for (let slot = 0; slot < config.slotsPerEpoch; slot++) {
@@ -360,13 +360,13 @@ function runBeamHoppingGroup(
   state: BaselineState['beamHopping'],
   cells: EarthFixedCell[],
   satellites: SatelliteInfo[],
-  baseConfig: Paper41Config,
+  baseConfig: LyapunovConfig,
   epoch: number,
-  handoverManager: Paper41HandoverManager,
+  handoverManager: LyapunovHandoverManager,
 ): { results: BaselineGroups['beamHopping']; updatedState: BaselineState['beamHopping'] } {
   const config = mergeConfig(baseConfig, BH_GROUP_CONFIG);
 
-  // Shared handover: Algorithm 1 (Paper41HandoverManager)
+  // Shared handover: Algorithm 1 (LyapunovHandoverManager)
   const hoResult = handoverManager.decide(cells, satellites, state.proposed.queues, state.proposed.virtualQueues);
   const hoAssignments = new Map<number, string>();
   for (const a of hoResult.assignments) {
@@ -647,9 +647,9 @@ function runHandoverGroup(
   state: BaselineState['handover'],
   cells: EarthFixedCell[],
   satellites: SatelliteInfo[],
-  baseConfig: Paper41Config,
+  baseConfig: LyapunovConfig,
   epoch: number,
-  handoverManager: Paper41HandoverManager,
+  handoverManager: LyapunovHandoverManager,
 ): { results: BaselineGroups['handover']; updatedState: BaselineState['handover'] } {
   const config = mergeConfig(baseConfig, HO_GROUP_CONFIG);
 
@@ -718,7 +718,7 @@ function baselineInterference(
   const gTxOff = computeAntennaGain(thetaOff, cfg.txPeakGainDbi, cfg.beamwidth3dBDeg, cfg.sideLobeLevel);
   const hDb = h > 0 ? 10 * Math.log10(h) : -200;
   const rxPowerDbm = cfg.txPowerDbm + gTxOff + 0 + hDb;
-  const wCenter = DEFAULT_PAPER41_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
+  const wCenter = DEFAULT_LYAPUNOV_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
   const availBwHz = Math.max(cluster.bandwidthMhz - wCenter, 0) * 1e6;
   const noiseDbm = availBwHz > 0 ? -174 + 10 * Math.log10(availBwHz) : -174;
   return rxPowerDbm - noiseDbm;
@@ -749,7 +749,7 @@ function ssFitness(
   solution: number[],
   queues: CellQueueState[],
   clusters: TerrestrialCluster[],
-  config: Paper41Config,
+  config: LyapunovConfig,
   cellElevations?: Map<number, number>,
 ): number {
   const T = config.slotsPerEpoch;
@@ -760,7 +760,7 @@ function ssFitness(
   for (let i = 0; i < solution.length; i++) {
     const Qc = queues[i]?.queueLength ?? 0;
     const cluster = clusters[i];
-    const wCenter = DEFAULT_PAPER41_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
+    const wCenter = DEFAULT_LYAPUNOV_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
     const sharedBw = cluster ? Math.max(cluster.bandwidthMhz - wCenter, 0) : 0;
     const sharedCap = sharedBw * (config.slotDurationMs / 1000) * Math.log2(1 + snrLin);
     const Omega = Qc * Qc + (sharedCap * T) ** 2;
@@ -779,7 +779,7 @@ function ssCapacityGain(
   solution: number[],
   queues: CellQueueState[],
   clusters: TerrestrialCluster[],
-  config: Paper41Config,
+  config: LyapunovConfig,
   cellElevations?: Map<number, number>,
 ): Map<number, number> {
   const gain = new Map<number, number>();
@@ -794,7 +794,7 @@ function ssCapacityGain(
     const elev = cellElevations?.get(cluster.cellId);
     if (baselineInterference(cluster, elev) >= threshold) continue;
 
-    const wCenter2 = DEFAULT_PAPER41_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
+    const wCenter2 = DEFAULT_LYAPUNOV_PHYSICAL_LAYER.terrestrialCenterBandwidthMhz;
     const capPerSlot = Math.max(cluster.bandwidthMhz - wCenter2, 0) *
       (config.slotDurationMs / 1000) * Math.log2(1 + snrLin);
     gain.set(q.cellId, capPerSlot * config.slotsPerEpoch);
@@ -825,7 +825,7 @@ function greedySpectrumSharing(
 function gaSpectrumSharing(
   queues: CellQueueState[],
   clusters: TerrestrialCluster[],
-  config: Paper41Config,
+  config: LyapunovConfig,
   cellElevations?: Map<number, number>,
 ): number[] {
   const dim = queues.length;
@@ -889,7 +889,7 @@ function gaSpectrumSharing(
 function bwoSpectrumSharing(
   queues: CellQueueState[],
   clusters: TerrestrialCluster[],
-  config: Paper41Config,
+  config: LyapunovConfig,
   cellElevations?: Map<number, number>,
 ): number[] {
   const dim = queues.length;
@@ -965,14 +965,14 @@ function runSpectrumSharingGroup(
   state: BaselineState['spectrumSharing'],
   cells: EarthFixedCell[],
   satellites: SatelliteInfo[],
-  baseConfig: Paper41Config,
+  baseConfig: LyapunovConfig,
   clusters: TerrestrialCluster[],
   epoch: number,
-  handoverManager: Paper41HandoverManager,
+  handoverManager: LyapunovHandoverManager,
 ): { results: BaselineGroups['spectrumSharing']; updatedState: BaselineState['spectrumSharing'] } {
   const config = mergeConfig(baseConfig, SS_GROUP_CONFIG);
 
-  // Shared handover: Algorithm 1 (Paper41HandoverManager)
+  // Shared handover: Algorithm 1 (LyapunovHandoverManager)
   const hoResult = handoverManager.decide(cells, satellites, state.proposed.queues, state.proposed.virtualQueues);
   const hoAssignments = new Map<number, string>();
   for (const a of hoResult.assignments) {
@@ -1047,19 +1047,19 @@ export function runBaselineEpoch(
   state: BaselineState,
   cells: EarthFixedCell[],
   satellites: SatelliteInfo[],
-  baseConfig: Paper41Config,
+  baseConfig: LyapunovConfig,
   clusters: TerrestrialCluster[],
   epoch: number,
 ): { results: BaselineGroups; updatedState: BaselineState } {
   // Ensure per-group handover managers exist (lazy init for backward compatibility)
   if (!state._hoManagerBH) {
-    state._hoManagerBH = new Paper41HandoverManager(mergeConfig(baseConfig, BH_GROUP_CONFIG));
+    state._hoManagerBH = new LyapunovHandoverManager(mergeConfig(baseConfig, BH_GROUP_CONFIG));
   }
   if (!state._hoManagerHO) {
-    state._hoManagerHO = new Paper41HandoverManager(mergeConfig(baseConfig, HO_GROUP_CONFIG));
+    state._hoManagerHO = new LyapunovHandoverManager(mergeConfig(baseConfig, HO_GROUP_CONFIG));
   }
   if (!state._hoManagerSS) {
-    state._hoManagerSS = new Paper41HandoverManager(mergeConfig(baseConfig, SS_GROUP_CONFIG));
+    state._hoManagerSS = new LyapunovHandoverManager(mergeConfig(baseConfig, SS_GROUP_CONFIG));
   }
 
   const bh = runBeamHoppingGroup(state.beamHopping, cells, satellites, baseConfig, epoch, state._hoManagerBH);
